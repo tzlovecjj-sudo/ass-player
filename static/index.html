@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASS字幕播放器 - 主播放页面</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/fullscreen.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>ASS字幕播放器</h1>
+            <p>支持本地和在线视频播放，硬字幕效果</p>
+            <div class="nav-links">
+                <a href="instructions.html" class="nav-link">使用说明</a>
+            </div>
+        </div>
+        
+        <div class="upload-section">
+            <div class="upload-group">
+                <label for="videoFile">选择本地视频文件 (MP4, WebM等):</label>
+                <input type="file" id="videoFile" accept="video/*">
+            </div>
+            
+            <div class="upload-group">
+                <label for="onlineVideoUrl">在线视频URL (支持B站、YouTube等):</label>
+                <div class="url-input-container">
+                    <input type="text" id="onlineVideoUrl" placeholder="请输入视频URL">
+                    <button id="loadOnlineVideoBtn">加载在线视频</button>
+                </div>
+                <div class="platform-info">支持B站、YouTube、普通视频链接等</div>
+                
+            </div>
+            
+            <div class="upload-group">
+                <label for="subtitleFile">选择ASS字幕文件:</label>
+                <input type="file" id="subtitleFile" accept=".ass">
+            </div>
+            <div id="uploadStatus" class="status"></div>
+        </div>
+        
+        <div class="video-container">
+            <video id="videoPlayer" crossorigin="anonymous">
+                您的浏览器不支持视频播放，请使用Chrome、Firefox或Edge浏览器
+            </video>
+            <canvas id="videoCanvas"></canvas>
+        </div>
+        
+        <div class="controls">
+            <div class="controls-left">
+                <button id="playPauseBtn" class="play-pause-btn" title="播放/暂停">▶️</button>
+                <button id="restartBtn" title="重新开始">↺</button>
+            </div>
+            
+            <div class="progress-container">
+                <div class="progress-bar" id="progressBar">
+                    <div class="progress" id="progress"></div>
+                </div>
+                <div class="progress-time">
+                    <span id="currentProgressTime">00:00:00</span>
+                    <span id="totalTime">00:00:00</span>
+                </div>
+            </div>
+            
+            <div class="controls-right">
+                <div class="current-time" id="currentTime">00:00:00</div>
+                <button id="fullscreenBtn" title="网页全屏">⛶</button>
+            </div>
+        </div>
+        
+        <div class="subtitle-preview">
+            <h3>当前字幕预览</h3>
+            <div id="subtitlePreview" class="subtitle-preview-content">
+                字幕将在这里预览
+            </div>
+        </div>
+        
+        <div class="file-info">
+            <h3>文件信息</h3>
+            <div id="videoInfo">未加载视频文件</div>
+            <div id="subtitleInfo">未加载字幕文件</div>
+        </div>
+    </div>
+
+	<!-- JS文件引入改为使用Flask的url_for -->
+	<script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+	<script src="{{ url_for('static', filename='js/video-parser.js') }}"></script>
+	<script src="{{ url_for('static', filename='js/fullscreen-controls.js') }}"></script>
+	<script src="{{ url_for('static', filename='js/subtitle-renderer.js') }}"></script>
+	<script src="{{ url_for('static', filename='js/ass-player.js') }}"></script>
+	<script>
+	    document.addEventListener('DOMContentLoaded', function() {
+	        console.log('初始化ASS播放器...');
+	        try {
+	            window.player = new EmbeddedASSPlayer();
+	            console.log('播放器初始化成功');
+	        } catch (error) {
+	            console.error('播放器初始化失败:', error);
+	        }
+	    });
+	</script>
+</body>
+</html>

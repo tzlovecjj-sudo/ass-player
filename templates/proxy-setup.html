@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>代理服务器配置 - ASS字幕播放器</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>代理服务器配置</h1>
+            <p>配置代理服务器以支持在线视频播放</p>
+            <div class="nav-links">
+                <a href="index.html" class="nav-link">返回播放器</a>
+                <a href="instructions.html" class="nav-link">使用说明</a>
+            </div>
+        </div>
+        
+        <div class="instructions">
+            <h2>为什么需要代理服务器？</h2>
+            <p>由于浏览器的跨域限制和安全策略，直接播放B站、YouTube等平台的视频会遇到限制。代理服务器可以帮助我们绕过这些限制。</p>
+            
+            <h2>代理服务器搭建步骤</h2>
+            
+            <h3>方法一：使用Node.js搭建本地代理</h3>
+            <ol>
+                <li>安装Node.js</li>
+                <li>创建一个名为proxy.js的文件，内容如下：</li>
+                <pre style="background: #3d3d3d; padding: 10px; border-radius: 5px; overflow-x: auto; margin: 10px 0;">
+const express = require('express');
+const request = require('request');
+const cors = require('cors');
+
+const app = express();
+app.use(cors());
+
+app.get('/proxy', (req, res) => {
+    const url = req.query.url;
+    if (!url) {
+        return res.status(400).send('缺少URL参数');
+    }
+    
+    request({
+        url: url,
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Referer': 'https://www.bilibili.com/'
+        }
+    }).pipe(res);
+});
+
+app.listen(3000, () => {
+    console.log('代理服务器运行在 http://localhost:3000');
+});
+                </pre>
+                <li>运行命令：<code>npm install express request cors</code></li>
+                <li>运行命令：<code>node proxy.js</code></li>
+                <li>在播放器中设置代理URL为：<code>http://localhost:3000/proxy</code></li>
+            </ol>
+            
+            <h3>方法二：使用现有代理服务</h3>
+            <p>您也可以使用现有的代理服务，但请注意这些服务可能不稳定或需要付费。</p>
+            
+            <h2>常见问题</h2>
+            <h3>1. 代理服务器测试失败</h3>
+            <p>确保代理服务器正在运行，并且端口没有被防火墙阻止。</p>
+            
+            <h3>2. 视频仍然无法播放</h3>
+            <p>某些平台可能有更严格的防盗链措施，可能需要更复杂的代理设置。</p>
+        </div>
+    </div>
+</body>
+</html>

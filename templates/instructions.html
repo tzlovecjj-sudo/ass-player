@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>使用说明 - ASS字幕播放器</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>ASS字幕播放器 - 使用说明</h1>
+            <p>详细的使用指南和功能介绍</p>
+            <div class="nav-links">
+                <a href="index.html" class="nav-link">返回播放器</a>
+                <a href="proxy-setup.html" class="nav-link">代理服务器配置</a>
+            </div>
+        </div>
+        
+        <div class="instructions-content">
+            <div class="instruction-section">
+                <h2>基本功能</h2>
+                <div class="feature-grid">
+                    <div class="feature-card">
+                        <h3>本地视频播放</h3>
+                        <p>支持MP4、WebM、OGG等常见视频格式，直接从本地文件加载播放。</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>ASS字幕渲染</h3>
+                        <p>完整支持ASS字幕格式，包括样式、颜色、位置等高级功能。</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>在线视频支持</h3>
+                        <p>支持B站、YouTube等平台的视频播放（需配置代理服务器）。</p>
+                    </div>
+                    <div class="feature-card">
+                        <h3>全屏播放</h3>
+                        <p>支持网页全屏和浏览器全屏两种模式，提供沉浸式观看体验。</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="instruction-section">
+                <h2>快速开始</h2>
+                <div class="step-by-step">
+                    <div class="step">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <h3>选择视频文件</h3>
+                            <p>点击"选择本地视频文件"按钮，从您的设备中选择一个视频文件。</p>
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <h3>加载字幕文件</h3>
+                            <p>点击"选择ASS字幕文件"按钮，选择对应的ASS字幕文件。</p>
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">3</div>
+                        <div class="step-content">
+                            <h3>开始播放</h3>
+                            <p>点击播放按钮开始播放视频，字幕将自动显示在视频画面上。</p>
+                        </div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">4</div>
+                        <div class="step-content">
+                            <h3>调整设置</h3>
+                            <p>使用进度条、全屏按钮等功能优化您的观看体验。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="instruction-section">
+                <h2>ASS字幕支持</h2>
+                <p>本播放器支持完整的ASS字幕格式，包括：</p>
+                <ul class="feature-list">
+                    <li><strong>样式定义</strong> - 支持字体、大小、颜色、位置等样式设置</li>
+                    <li><strong>颜色标签</strong> - 支持{\c}等颜色标签</li>
+                    <li><strong>文字特效</strong> - 支持阴影、描边等文字效果</li>
+                    <li><strong>多行字幕</strong> - 自动换行，支持长文本显示</li>
+                    <li><strong>时间轴</strong> - 精确的时间控制</li>
+                </ul>
+            </div>
+            
+            <div class="instruction-section">
+                <h2>键盘快捷键</h2>
+                <div class="shortcuts-grid">
+                    <div class="shortcut-item">
+                        <kbd>空格键</kbd>
+                        <span>播放/暂停</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>ESC</kbd>
+                        <span>退出全屏</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>←</kbd>
+                        <span>后退5秒</span>
+                    </div>
+                    <div class="shortcut-item">
+                        <kbd>→</kbd>
+                        <span>前进5秒</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="instruction-section">
+                <h2>常见问题</h2>
+                <div class="faq-list">
+                    <div class="faq-item">
+                        <h3>为什么视频无法播放？</h3>
+                        <p>请确保使用支持的视频格式（MP4、WebM等），并尝试使用Chrome或Firefox浏览器。</p>
+                    </div>
+                    <div class="faq-item">
+                        <h3>字幕没有显示怎么办？</h3>
+                        <p>检查字幕文件格式是否正确，确保是有效的ASS文件。同时检查字幕时间轴是否与视频匹配。</p>
+                    </div>
+                    <div class="faq-item">
+                        <h3>在线视频无法加载？</h3>
+                        <p>在线视频播放需要配置代理服务器。请参考<a href="proxy-setup.html">代理服务器配置</a>页面。</p>
+                    </div>
+                    <div class="faq-item">
+                        <h3>全屏模式有问题？</h3>
+                        <p>某些浏览器对全屏API的支持有限。尝试更新浏览器或使用不同的浏览器。</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="instruction-section">
+                <h2>技术支持</h2>
+                <p>如果您遇到任何问题或有功能建议，请联系我们：</p>
+                <ul>
+                    <li>邮箱：support@ass-player.com</li>
+                    <li>GitHub：https://github.com/your-repo/ass-player</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

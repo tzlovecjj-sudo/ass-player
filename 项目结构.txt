@@ -1,0 +1,19 @@
+ass-player-windows/
+├── start.py              # 主启动文件（跨平台兼容）
+├── start.bat             # Windows启动脚本
+├── 使用说明.txt           # Windows用户说明
+├── templates/            # HTML模板
+│   ├── index.html
+│   ├── instructions.html
+│   └── proxy-setup.html
+└── static/               # 静态资源
+    ├── css/
+    │   ├── main.css
+    │   ├── fullscreen.css
+    │   └── components.css
+    └── js/
+        ├── utils.js
+        ├── video-parser.js
+        ├── fullscreen-controls.js
+        ├── subtitle-renderer.js
+        └── ass-player.js

@@ -1,0 +1,310 @@
+/* 主样式文件 - 确保所有必要的样式都存在 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Microsoft YaHei', Arial, sans-serif;
+    background: #1a1a1a;
+    color: #fff;
+    padding: 20px;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #333;
+}
+
+.header h1 {
+    color: #ff6b00;
+    margin-bottom: 10px;
+}
+
+.nav-links {
+    margin-top: 15px;
+}
+
+.nav-link {
+    display: inline-block;
+    margin: 0 10px;
+    padding: 8px 15px;
+    background: #2d2d2d;
+    color: #ff6b00;
+    text-decoration: none;
+    border-radius: 5px;
+    transition: background 0.3s;
+}
+
+.nav-link:hover {
+    background: #3d3d3d;
+}
+
+.upload-section {
+    background: #2d2d2d;
+    padding: 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+}
+
+.upload-group {
+    margin-bottom: 15px;
+}
+
+.upload-group label {
+    display: block;
+    margin-bottom: 5px;
+    color: #ccc;
+}
+
+.upload-group input {
+    width: 100%;
+    padding: 10px;
+    background: #3d3d3d;
+    border: 1px solid #555;
+    border-radius: 5px;
+    color: #fff;
+}
+
+.upload-group button {
+    width: 100%;
+    padding: 10px;
+    background: #ff6b00;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+    margin-top: 5px;
+}
+
+.upload-group button:hover {
+    background: #e55a00;
+}
+
+.video-container {
+    position: relative;
+    background: #000;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 300px;
+}
+
+#videoPlayer {
+    display: none;
+}
+
+#videoCanvas {
+    max-width: 100%;
+    max-height: 70vh;
+    background: #000;
+    display: block;
+}
+
+.controls {
+    background: #2d2d2d;
+    padding: 10px 15px;
+    border-radius: 10px;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 20px;
+    transition: opacity 0.3s;
+}
+
+.controls-left {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.controls-right {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-left: auto;
+}
+
+.progress-container {
+    flex: 1;
+    margin: 0 15px;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 6px;
+    background: #3d3d3d;
+    border-radius: 3px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.progress {
+    height: 100%;
+    background: #ff6b00;
+    border-radius: 3px;
+    width: 0%;
+    transition: width 0.1s;
+}
+
+.progress-time {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #ccc;
+    margin-top: 5px;
+}
+
+button {
+    background: transparent;
+    border: none;
+    color: white;
+    cursor: pointer;
+    font-size: 18px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: background 0.3s;
+}
+
+button:hover {
+    background: rgba(255, 107, 0, 0.2);
+}
+
+.current-time {
+    font-family: monospace;
+    background: #3d3d3d;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.file-info {
+    background: #2d2d2d;
+    padding: 15px;
+    border-radius: 10px;
+    font-size: 14px;
+}
+
+.file-info h3 {
+    color: #ff6b00;
+    margin-bottom: 10px;
+}
+
+.status {
+    padding: 10px;
+    border-radius: 5px;
+    margin: 10px 0;
+    text-align: center;
+}
+
+.status.success {
+    background: #2d5a2d;
+    color: #90ee90;
+}
+
+.status.error {
+    background: #5a2d2d;
+    color: #ff6b6b;
+}
+
+.status.info {
+    background: #2d3a5a;
+    color: #90c0ee;
+}
+
+.subtitle-preview {
+    background: #2d2d2d;
+    padding: 15px;
+    border-radius: 10px;
+    margin-top: 20px;
+    font-size: 14px;
+}
+
+.subtitle-preview h3 {
+    color: #ff6b00;
+    margin-bottom: 10px;
+}
+
+.subtitle-preview-content {
+    min-height: 60px;
+    padding: 10px;
+    background: #3d3d3d;
+    border-radius: 5px;
+    font-size: 16px;
+    text-align: center;
+}
+
+.url-input-container {
+    display: flex;
+    gap: 10px;
+}
+
+.url-input-container input {
+    flex: 1;
+}
+
+.url-input-container button {
+    width: auto;
+    padding: 0 15px;
+}
+
+.platform-info {
+    font-size: 12px;
+    color: #aaa;
+    margin-top: 5px;
+}
+
+.proxy-config {
+    background: #3d3d3d;
+    padding: 10px;
+    border-radius: 5px;
+    margin-top: 10px;
+}
+
+.proxy-config label {
+    display: block;
+    margin-bottom: 5px;
+    color: #ccc;
+}
+
+.proxy-config input {
+    width: 100%;
+    padding: 8px;
+    background: #4d4d4d;
+    border: 1px solid #666;
+    border-radius: 4px;
+    color: #fff;
+    margin-bottom: 10px;
+}
+
+.proxy-config button {
+    width: 100%;
+    padding: 8px;
+    background: #007acc;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.proxy-config button:hover {
+    background: #0066aa;
+}
