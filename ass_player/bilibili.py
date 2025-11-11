@@ -197,12 +197,26 @@ class BiliBiliParser:
             return None
 
     def _find_mp4_in_html(self, html: str) -> Optional[str]:
-        patterns = [r'https://[^"\']+\.mp4[^"\']*', r'"url":"(https://[^\"]+\.mp4[^\"]*)"]
-        for pat in patterns:
-            for m in re.findall(pat, html):
-                if m and self._is_url_allowed(m):
-                    logger.info("Found mp4 via regex: %s", m)
-                    return m
+        """In HTML text, find MP4 links and return the first allowed candidate or None."""
+        try:
+            patterns = [
+                r'https?://[^\s"\'<>]+\.mp4(?:[^\s"\'<>]*)',
+                r'"url"\s*:\s*"(https?://[^"]+?\.mp4[^"]*)"',
+                r'src\s*=\s*"(https?://[^"]+?\.mp4[^"]*)"',
+                r'href\s*=\s*"(https?://[^"]+?\.mp4[^"]*)"',
+            ]
+            for pat in patterns:
+                for m in re.findall(pat, html, flags=re.IGNORECASE):
+                    # re.findall may return tuples when there are groups; normalize to string
+                    candidate = m if isinstance(m, str) else (m[0] if m else None)
+                    if not candidate:
+                        continue
+                    if hasattr(self, "_is_url_allowed") and not self._is_url_allowed(candidate):
+                        continue
+                    logger.info("Found mp4 via regex: %s", candidate)
+                    return candidate
+        except Exception:
+            logger.exception("_find_mp4_in_html failed")
         return None
 
     def _detect_actual_quality(self, url: str) -> str:
