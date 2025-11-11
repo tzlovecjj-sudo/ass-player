@@ -13,8 +13,7 @@
             <h1>ASS字幕播放器 - 使用说明</h1>
             <p>详细的使用指南和功能介绍</p>
             <div class="nav-links">
-                <a href="index.html" class="nav-link">返回播放器</a>
-                <a href="proxy-setup.html" class="nav-link">代理服务器配置</a>
+                <a href="{{ url_for('index') }}" class="nav-link">返回播放器</a>
             </div>
         </div>
         
@@ -32,7 +31,7 @@
                     </div>
                     <div class="feature-card">
                         <h3>在线视频支持</h3>
-                        <p>支持B站、YouTube等平台的视频播放（需配置代理服务器）。</p>
+                        <p>支持B站、YouTube等平台的视频播放，暂时还只支持了B站。</p>
                     </div>
                     <div class="feature-card">
                         <h3>全屏播放</h3>
@@ -121,24 +120,12 @@
                         <p>检查字幕文件格式是否正确，确保是有效的ASS文件。同时检查字幕时间轴是否与视频匹配。</p>
                     </div>
                     <div class="faq-item">
-                        <h3>在线视频无法加载？</h3>
-                        <p>在线视频播放需要配置代理服务器。请参考<a href="proxy-setup.html">代理服务器配置</a>页面。</p>
-                    </div>
-                    <div class="faq-item">
                         <h3>全屏模式有问题？</h3>
                         <p>某些浏览器对全屏API的支持有限。尝试更新浏览器或使用不同的浏览器。</p>
                     </div>
                 </div>
             </div>
             
-            <div class="instruction-section">
-                <h2>技术支持</h2>
-                <p>如果您遇到任何问题或有功能建议，请联系我们：</p>
-                <ul>
-                    <li>邮箱：support@ass-player.com</li>
-                    <li>GitHub：https://github.com/your-repo/ass-player</li>
-                </ul>
-            </div>
         </div>
     </div>
 </body>

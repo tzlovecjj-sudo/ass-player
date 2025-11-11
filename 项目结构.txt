@@ -5,7 +5,6 @@ ass-player-windows/
 ├── templates/            # HTML模板
 │   ├── index.html
 │   ├── instructions.html
-│   └── proxy-setup.html
 └── static/               # 静态资源
     ├── css/
     │   ├── main.css
