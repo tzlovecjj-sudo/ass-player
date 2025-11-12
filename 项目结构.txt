@@ -11,8 +11,15 @@ ass-player-windows/
     │   ├── fullscreen.css
     │   └── components.css
     └── js/
-        ├── utils.js
-        ├── video-parser.js
-        ├── fullscreen-controls.js
-        ├── subtitle-renderer.js
-        └── ass-player.js
+        ├── modules/
+        │   ├── video-controller.js    # 视频播放控制
+        │   ├── ui-controller.js       # UI更新和Canvas
+        │   ├── file-handler.js        # 文件处理
+        │   ├── progress-controller.js # 进度条控制
+        │   ├── config.js              # 配置管理
+        │   └── main.js                # 模块化入口
+        ├── ass-player.js              # 主播放器（重构后）
+        ├── subtitle-renderer.js       # 字幕渲染
+        ├── fullscreen-controls.js     # 全屏控制
+        ├── video-parser.js            # 视频解析
+        └── utils.js                   # 工具函数
