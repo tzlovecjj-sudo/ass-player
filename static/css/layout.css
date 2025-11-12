@@ -1,0 +1,375 @@
+/* 新版布局样式 - 左右分栏设计 */
+
+.layout-container {
+    display: flex;
+    gap: 20px;
+    min-height: calc(100vh - 40px);
+    align-items: flex-start;
+}
+
+/* 左侧视频区域 */
+.video-section {
+    flex: 1;
+    min-width: 0;
+    position: sticky;
+    top: 20px;
+}
+
+.video-section .video-container {
+    background: #000;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 15px;
+    aspect-ratio: 16/9;
+    max-height: 80vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.video-section .video-container #videoCanvas {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #000;
+}
+
+/* 字幕预览容器 - 在视频下方 */
+.subtitle-preview-container {
+    background: #2d2d2d;
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+.subtitle-preview-container h3 {
+    color: #ff6b00;
+    margin-bottom: 10px;
+    font-size: 16px;
+}
+
+.subtitle-preview-content {
+    min-height: 60px;
+    padding: 15px;
+    background: #3d3d3d;
+    border-radius: 8px;
+    font-size: 16px;
+    text-align: center;
+    border: 1px solid #555;
+    transition: all 0.3s;
+    display: block;
+    white-space: pre-line;
+    line-height: 1.5;
+}
+
+.subtitle-preview-content.active {
+    border-color: #ff6b00;
+    background: #3d2d2d;
+}
+
+/* 右侧控制面板 */
+.control-panel {
+    width: 400px;
+    background: #2d2d2d;
+    border-radius: 10px;
+    padding: 20px;
+    position: sticky;
+    top: 20px;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+}
+
+.control-panel::-webkit-scrollbar {
+    width: 6px;
+}
+
+.control-panel::-webkit-scrollbar-track {
+    background: #1a1a1a;
+    border-radius: 3px;
+}
+
+.control-panel::-webkit-scrollbar-thumb {
+    background: #ff6b00;
+    border-radius: 3px;
+}
+
+/* 应用标题区域 - 在控制面板内 */
+.header-section {
+    text-align: center;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #3d3d3d;
+    margin-bottom: 20px;
+}
+
+.app-title {
+    color: #ff6b00;
+    margin-bottom: 8px;
+    font-size: 1.5rem;
+    font-weight: bold;
+}
+
+.app-description {
+    color: #ccc;
+    font-size: 0.9rem;
+    margin-bottom: 12px;
+}
+
+.header-section .nav-links {
+    margin-top: 10px;
+}
+
+.header-section .nav-link {
+    display: inline-block;
+    padding: 6px 12px;
+    background: #3d3d3d;
+    color: #ff6b00;
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    transition: background 0.3s;
+}
+
+.header-section .nav-link:hover {
+    background: #4d4d4d;
+}
+
+/* 控制面板内部布局 */
+.panel-section {
+    margin-bottom: 25px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #3d3d3d;
+}
+
+.panel-section:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.panel-section h3 {
+    color: #ff6b00;
+    margin-bottom: 15px;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.panel-section h3::before {
+    content: "▶";
+    font-size: 12px;
+}
+
+/* 文件上传区域优化 */
+.upload-group {
+    margin-bottom: 15px;
+}
+
+.upload-group label {
+    display: block;
+    margin-bottom: 8px;
+    color: #ccc;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.upload-group input,
+.upload-group .url-input-container input {
+    width: 100%;
+    padding: 10px 12px;
+    background: #3d3d3d;
+    border: 1px solid #555;
+    border-radius: 6px;
+    color: #fff;
+    font-size: 14px;
+    transition: border-color 0.3s;
+}
+
+.upload-group input:focus,
+.upload-group .url-input-container input:focus {
+    outline: none;
+    border-color: #ff6b00;
+}
+
+.url-input-container {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.url-input-container input {
+    flex: 1;
+}
+
+.url-input-container button {
+    width: auto;
+    padding: 10px 16px;
+    background: #ff6b00;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+    white-space: nowrap;
+    transition: background 0.3s;
+}
+
+.url-input-container button:hover {
+    background: #e55a00;
+}
+
+/* 文件信息区域 */
+.file-info-content {
+    background: #3d3d3d;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    border: 1px solid #555;
+}
+
+.file-info-item {
+    margin-bottom: 8px;
+    display: flex;
+    justify-content: space-between;
+}
+
+.file-info-item:last-child {
+    margin-bottom: 0;
+}
+
+.file-info-label {
+    color: #aaa;
+    font-weight: 500;
+}
+
+.file-info-value {
+    color: #fff;
+    text-align: right;
+    max-width: 60%;
+    word-break: break-all;
+}
+
+/* 状态消息 */
+.status {
+    padding: 12px;
+    border-radius: 6px;
+    margin: 10px 0;
+    text-align: center;
+    font-size: 14px;
+    border: 1px solid transparent;
+}
+
+.status.success {
+    background: rgba(45, 90, 45, 0.3);
+    color: #90ee90;
+    border-color: #2d5a2d;
+}
+
+.status.error {
+    background: rgba(90, 45, 45, 0.3);
+    color: #ff6b6b;
+    border-color: #5a2d2d;
+}
+
+.status.info {
+    background: rgba(45, 58, 90, 0.3);
+    color: #90c0ee;
+    border-color: #2d3a5a;
+}
+
+/* 平台信息提示 */
+.platform-info {
+    font-size: 12px;
+    color: #888;
+    margin-top: 5px;
+    text-align: center;
+}
+
+/* 响应式设计 */
+@media (max-width: 1024px) {
+    .layout-container {
+        flex-direction: column;
+    }
+    
+    .control-panel {
+        width: 100%;
+        position: static;
+        max-height: none;
+    }
+    
+    .video-section {
+        position: static;
+    }
+}
+
+/* 控制按钮样式优化 */
+.controls-left,
+.controls-right {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.controls-right {
+    margin-left: auto;
+}
+
+.play-pause-btn {
+    background: #ff6b00 !important;
+    border-radius: 50% !important;
+    width: 40px !important;
+    height: 40px !important;
+    font-size: 16px !important;
+}
+
+.play-pause-btn:hover {
+    background: #e55a00 !important;
+    transform: scale(1.05);
+}
+
+/* 进度条优化 */
+.progress-container {
+    flex: 1;
+    margin: 0 15px;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: #3d3d3d;
+    border-radius: 4px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+}
+
+.progress {
+    height: 100%;
+    background: linear-gradient(90deg, #ff6b00, #ff8c42);
+    border-radius: 4px;
+    width: 0%;
+    transition: width 0.1s;
+    position: relative;
+}
+
+.progress::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 12px;
+    height: 12px;
+    background: #fff;
+    border-radius: 50%;
+    transform: translate(50%, -2px);
+    box-shadow: 0 0 4px rgba(255, 107, 0, 0.8);
+}
+
+.progress-time {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #ccc;
+    margin-top: 8px;
+}

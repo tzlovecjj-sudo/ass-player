@@ -14,8 +14,9 @@ body {
 }
 
 .container {
-    max-width: 1000px;
+    max-width: 1600px;
     margin: 0 auto;
+    width: 100%;
 }
 
 .header {
@@ -28,6 +29,12 @@ body {
 .header h1 {
     color: #ff6b00;
     margin-bottom: 10px;
+    font-size: 2.5rem;
+}
+
+.header p {
+    font-size: 1.1rem;
+    color: #ccc;
 }
 
 .nav-links {
