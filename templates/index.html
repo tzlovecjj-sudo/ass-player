@@ -125,24 +125,7 @@
         </div>
     </div>
 
-    <!-- JS文件引入改为使用Flask的url_for -->
-    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/video-parser.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/fullscreen-controls.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/subtitle-renderer.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/layout-manager.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/ass-player.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/ass-player-patch.js') }}"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('初始化ASS播放器...');
-            try {
-                window.player = new EmbeddedASSPlayer();
-                console.log('播放器初始化成功');
-            } catch (error) {
-                console.error('播放器初始化失败:', error);
-            }
-        });
-    </script>
+    <!-- 使用ES6模块化版本 -->
+    <script type="module" src="{{ url_for('static', filename='js/modules/main.js') }}"></script>
 </body>
 </html>

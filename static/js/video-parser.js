@@ -1,5 +1,5 @@
-// 视频解析模块 - 自动化解析版
-class VideoParser {
+// 视频解析模块 - ES6模块化版本
+export default class VideoParser {
     constructor() {
         this.autoParseApi = '/api/auto-parse';
     }

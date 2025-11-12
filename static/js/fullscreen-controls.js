@@ -1,5 +1,5 @@
-// 全屏控制模块 - 非模块化版本
-class FullscreenControls {
+// 全屏控制模块 - ES6模块化版本
+export default class FullscreenControls {
     constructor(player) {
         this.player = player;
         this.isWebFullscreen = false;

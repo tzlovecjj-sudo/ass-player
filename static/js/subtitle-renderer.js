@@ -1,5 +1,5 @@
-// 字幕渲染模块 - 非模块化版本
-class SubtitleRenderer {
+// 字幕渲染模块 - ES6模块化版本
+export default class SubtitleRenderer {
     constructor(player) {
         this.player = player;
     }
