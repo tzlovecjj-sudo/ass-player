@@ -53,6 +53,13 @@ def static_files(filename):
     """提供静态文件（如 CSS, JavaScript）的访问"""
     return send_from_directory(app.static_folder, filename)
 
+# 提供示例字幕文件访问（用于在线 Demo 默认加载）
+@app.route('/ass_files/<path:filename>')
+def ass_files(filename):
+    """提供本地 ass_files 目录下的字幕文件访问"""
+    ass_dir = os.path.join(base_dir, 'ass_files')
+    return send_from_directory(ass_dir, filename)
+
 # 定义网站图标的路由
 @app.route('/favicon.ico')
 def favicon():
