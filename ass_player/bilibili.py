@@ -360,13 +360,47 @@ class BiliBiliParser:
                 return url
 
             # 候选替换域名（可按需扩展）
+            # 说明：这是一个经验性的候选列表，旨在提高在不同区域或镜像上的命中率。
+            # 如果某些场景要求更严格验证，可以增加更多验证或关闭 best-effort fallback。
             candidates = [
                 'upos-sz-estgcos.bilivideo.com',
-                'upos-hz-mirrorakam.akamaized.net'
+                'upos-hz-mirrorakam.akamaized.net',
+                'upos-sz-mirrorakam.akamaized.net',
+                'upos-hz.akamaized.net',
+                'upos-sz.bilivideo.com'
             ]
 
             # 解析并保留原始查询参数，必要时调整部分参数（例如 os -> estgcos）
             orig_qs = dict(parse_qsl(parsed.query, keep_blank_values=True))
+
+            # 快速路径：某些场景下简单地把 upos-hz-mirrorakam.akamaized.net 替换为
+            # upos-sz-estgcos.bilivideo.com 即可恢复可访问性。优先短路返回以提高命中率。
+            if 'upos-hz-mirrorakam.akamaized.net' in low:
+                quick_netloc = 'upos-sz-estgcos.bilivideo.com'
+                new_parsed = parsed._replace(netloc=quick_netloc, query=urlencode(orig_qs, doseq=True))
+                quick_url = urlunparse(new_parsed)
+                logger.info('按用户提示进行快速替换：%s -> %s', hostname, quick_netloc)
+                # 尝试用很短的超时时间做一次 HEAD，以便尽可能记录 content-length，但不影响返回
+                try:
+                    hq = self.session.head(quick_url, timeout=min(3, self.timeout), allow_redirects=True, headers={'Referer': 'https://www.bilibili.com/'})
+                    if hq.status_code in (200, 206):
+                        size = hq.headers.get('content-length')
+                        if not size and hq.headers.get('content-range'):
+                            try:
+                                size = hq.headers.get('content-range').split('/')[-1]
+                            except Exception:
+                                size = None
+                        if size:
+                            try:
+                                self._content_length_cache[quick_url] = int(size)
+                            except Exception:
+                                pass
+                except Exception:
+                    logger.debug('快速替换后的 HEAD 请求失败（可忽略）')
+                return quick_url
+
+            # 使用较短的超时时间以避免在云端阻塞过久
+            short_timeout = min(3, self.timeout)
 
             for cand in candidates:
                 # 构造新的查询参数副本
@@ -383,8 +417,10 @@ class BiliBiliParser:
                 new_url = urlunparse(new_parsed)
 
                 # 采用 HEAD 请求验证可达性，部分服务器对 HEAD 不友好，则退回用 GET 的 Range 请求
+                # 优先尝试 HEAD（轻量），但如果 HEAD 返回非 200/206，也尝试使用带 Range 的 GET
                 try:
-                    h = self.session.head(new_url, timeout=self.timeout, allow_redirects=True, headers={'Referer': 'https://www.bilibili.com/'})
+                    head_headers = {'Referer': 'https://www.bilibili.com/'}
+                    h = self.session.head(new_url, timeout=short_timeout, allow_redirects=True, headers=head_headers)
                     if h.status_code in (200, 206):
                         # 尝试读取 Content-Length
                         size = h.headers.get('content-length')
@@ -402,24 +438,46 @@ class BiliBiliParser:
                                 pass
                         logger.info('替换 CDN 主机成功：%s -> %s (status=%s)', hostname, cand, h.status_code)
                         return new_url
+                    # 如果 HEAD 未返回成功状态，继续尝试使用带 Range 的 GET（某些 CDN 对 HEAD 返回 403 或 401）
+                    logger.debug('HEAD 返回非预期状态 (%s) - 尝试使用 GET Range 验证候选 CDN %s', h.status_code, cand)
                 except Exception:
-                    # 再尝试 GET Range
-                    try:
-                        r = self.session.get(new_url, timeout=self.timeout, headers={'Referer': 'https://www.bilibili.com/', 'Range': 'bytes=0-0'})
-                        if r.status_code in (200, 206):
-                            size = r.headers.get('content-length') or (r.headers.get('content-range').split('/')[-1] if r.headers.get('content-range') else None)
-                            if size:
-                                try:
-                                    self._content_length_cache[new_url] = int(size)
-                                except Exception:
-                                    pass
-                            logger.info('通过 GET Range 验证替换 CDN 主机可用：%s -> %s (status=%s)', hostname, cand, r.status_code)
-                            return new_url
-                    except Exception:
-                        logger.debug('尝试验证候选 CDN %s 失败', cand)
+                    logger.debug('HEAD 请求候选 CDN %s 时抛出异常，准备使用 GET Range 作为回退', cand)
 
-            logger.debug('未找到可用的替换 CDN，返回原始 URL')
-            return url
+                # 使用 GET 带 Range 作进一步验证
+                try:
+                    get_headers = {'Referer': 'https://www.bilibili.com/', 'Range': 'bytes=0-0'}
+                    # 保留 session 的 User-Agent（已在 session headers 中设置），并允许重定向
+                    r = self.session.get(new_url, timeout=short_timeout, headers=get_headers, allow_redirects=True)
+                    if r.status_code in (200, 206):
+                        size = r.headers.get('content-length') or (r.headers.get('content-range').split('/')[-1] if r.headers.get('content-range') else None)
+                        if size:
+                            try:
+                                self._content_length_cache[new_url] = int(size)
+                            except Exception:
+                                pass
+                        logger.info('通过 GET Range 验证替换 CDN 主机可用：%s -> %s (status=%s)', hostname, cand, r.status_code)
+                        return new_url
+                    else:
+                        logger.debug('GET Range 返回非预期状态 (%s) for %s', r.status_code, cand)
+                except Exception:
+                    logger.debug('尝试验证候选 CDN %s 时失败', cand)
+
+            # 如果没有任何候选被验证为可用，采用 best-effort 策略：返回第一个候选构造的 URL
+            try:
+                first = candidates[0]
+                q = orig_qs.copy()
+                if 'estgcos' in first:
+                    q['os'] = 'estgcos'
+                if 'platform' not in q:
+                    q['platform'] = 'html5'
+                be_query = urlencode(q, doseq=True)
+                be_parsed = parsed._replace(netloc=first, query=be_query)
+                best_effort_url = urlunparse(be_parsed)
+                logger.info('未验证到可用候选，返回首个候选作为 best-effort 替换：%s -> %s', hostname, first)
+                return best_effort_url
+            except Exception:
+                logger.debug('构造 best-effort URL 失败，退回返回原始 URL')
+                return url
         except Exception:
             logger.exception('在尝试转换 CDN 链接时发生异常')
             return url
