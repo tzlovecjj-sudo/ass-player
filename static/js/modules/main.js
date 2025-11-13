@@ -83,8 +83,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         // 下载按钮已移除：不再提供单独的下载按钮，下载提示将仅在加载成功时显示
 
-        // --- 在线 Demo：默认加载示例字幕与对应 B 站视频（仅本地演示时自动加载） ---
-        if (isLocal) {
+    // --- 在线 Demo：默认加载示例字幕与对应 B 站视频（页面进入即自动加载与播放） ---
+    // 无论是否本地或绑定域名，进入页面都尝试自动加载示例视频与字幕
+    if (true) {
             const demoBiliUrl = 'https://www.bilibili.com/video/BV1NmyXBTEGD';
             const demoAssName = '2 Minecraft Pros VS 1000 Players.ass';
             const demoAssPath = '/ass_files/' + encodeURIComponent(demoAssName);
