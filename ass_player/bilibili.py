@@ -15,7 +15,6 @@ from typing import Optional
 from urllib.parse import urlparse as urllib_parse  # 使用 urllib.parse 进行 URL 解析，减少对重型库的依赖
 from urllib.parse import parse_qsl, urlencode, urlunparse
 import time
-import sqlite3
 
 # 导入第三方库
 import requests
@@ -59,7 +58,7 @@ class BiliBiliParser:
         video_url = parser.get_real_url("https://www.bilibili.com/video/BV1...")
     """
 
-    def __init__(self, session: Optional[requests.Session] = None, timeout: int = 10, cache_path: Optional[str] = None, disk_cache_conn: Optional[sqlite3.Connection] = None):
+    def __init__(self, session: Optional[requests.Session] = None, timeout: int = 10, cache_path: Optional[str] = None, disk_cache_conn: Optional[object] = None):
         """
         初始化 BiliBiliParser。
 
@@ -81,27 +80,8 @@ class BiliBiliParser:
         self.timeout = timeout
     # NOTE: 不再缓存或主动获取远端资源的 Content-Length（避免在本地解析时发生阻塞）
 
-        # 新增：缓存“BV号/URL -> 直链”，避免重复解析（简单 LRU，最大 100 条）
-        from collections import OrderedDict
-        self._url_cache = OrderedDict()
-        self._url_cache_max = 100
-
-        # 本地磁盘缓存（SQLite，懒加载），适合单实例短期持久化
-        import os
-        if cache_path is None:
-            cache_path = os.path.join(os.path.dirname(__file__), 'bilibili_cache.db')
-        # sqlite 文件路径（仅作参考；实际连接由应用在启动时创建并注入）
-        self._disk_cache_path = cache_path
-        # SQLite 连接（由应用传入；如果为 None，则磁盘缓存功能禁用）
-        self._disk_cache_conn = disk_cache_conn
-        # 标记该解析器是否拥有并负责关闭连接（当前实现不创建连接，故默认为 False）
-        self._owns_disk_conn = False
-        # 磁盘缓存 TTL（秒），默认 30 分钟
-        self._disk_cache_ttl = 1800
-        # 缓存表名
-        self._disk_cache_table = 'cache'
-        # 表初始化标记（当传入连接时，在首次使用时创建表）
-        self._disk_cache_inited = False
+        # 已移除缓存机制：不再在内存或磁盘中保存解析结果
+        # 保留 cache_path/disk_cache_conn 参数以保持向后兼容，但不使用
 
         # 设置默认的请求头，模拟移动端浏览器访问
         self.session.headers.update({
@@ -142,17 +122,7 @@ class BiliBiliParser:
                 if mp4_url:
                     # 优化：仅使用官方 API 得到的直链，并对某些镜像域名做无阻塞的主机替换（不发起网络验证）
                     final_url = self._try_convert_cdn_url(mp4_url)
-                    cache_key = None
-                    bvid_match2 = re.search(r'BV[a-zA-Z0-9]{10}', url)
-                    cache_key = bvid_match2.group(0) if bvid_match2 else url
-                    # 写入内存缓存
-                    self._url_cache[cache_key] = final_url
-                    if len(self._url_cache) > self._url_cache_max:
-                        self._url_cache.popitem(last=False)
-                    try:
-                        self._set_disk_cache(cache_key, final_url)
-                    except Exception as e:
-                        logger.warning('写入本地磁盘缓存异常: %s', e)
+                    # 不再缓存解析结果，直接返回最终 URL
                     return final_url
                 else:
                     logger.warning("官方 API 未返回有效的 720P MP4 链接: %s", url)
@@ -169,74 +139,9 @@ class BiliBiliParser:
             return None
 
     def __del__(self):
-        # 仅在解析器自己创建并拥有连接时负责关闭
-        try:
-            if getattr(self, '_owns_disk_conn', False) and getattr(self, '_disk_cache_conn', None):
-                try:
-                    self._disk_cache_conn.close()
-                except Exception:
-                    pass
-        except Exception:
-            pass
+        # 不再使用磁盘缓存或持有外部连接，因此无需在析构时关闭任何缓存连接
+        return
 
-    def _ensure_disk_cache(self):
-        """
-        确保当已注入 SQLite 连接时表被初始化。
-        注意：该方法不负责创建连接（应用应在启动时创建连接并传入）。
-        """
-        if not getattr(self, '_disk_cache_conn', None):
-            return
-        if getattr(self, '_disk_cache_inited', False):
-            return
-        try:
-            conn = self._disk_cache_conn
-            cur = conn.cursor()
-            cur.execute(f"""CREATE TABLE IF NOT EXISTS {self._disk_cache_table} (
-                key TEXT PRIMARY KEY,
-                url TEXT,
-                ts REAL
-            )""")
-            conn.commit()
-            self._disk_cache_inited = True
-        except Exception:
-            logger.exception('初始化磁盘缓存表失败')
-
-    def _get_disk_cache(self, key: str):
-        try:
-            self._ensure_disk_cache()
-            if not getattr(self, '_disk_cache_conn', None):
-                return None
-            cur = self._disk_cache_conn.cursor()
-            cur.execute(f"SELECT url, ts FROM {self._disk_cache_table} WHERE key = ?", (key,))
-            row = cur.fetchone()
-            if not row:
-                return None
-            return {'url': row[0], 'ts': row[1]}
-        except Exception:
-            logger.exception('读取磁盘缓存项失败: %s', key)
-            return None
-
-    def _set_disk_cache(self, key: str, url: str):
-        try:
-            self._ensure_disk_cache()
-            if not getattr(self, '_disk_cache_conn', None):
-                return
-            cur = self._disk_cache_conn.cursor()
-            cur.execute(f"INSERT OR REPLACE INTO {self._disk_cache_table} (key, url, ts) VALUES (?, ?, ?)", (key, url, time.time()))
-            self._disk_cache_conn.commit()
-        except Exception:
-            logger.exception('写入磁盘缓存项失败: %s', key)
-
-    def _del_disk_cache(self, key: str):
-        try:
-            self._ensure_disk_cache()
-            if not getattr(self, '_disk_cache_conn', None):
-                return
-            cur = self._disk_cache_conn.cursor()
-            cur.execute(f"DELETE FROM {self._disk_cache_table} WHERE key = ?", (key,))
-            self._disk_cache_conn.commit()
-        except Exception:
-            logger.exception('删除磁盘缓存项失败: %s', key)
 
     def _get_720p_mp4(self, url: str) -> Optional[str]:
         """
@@ -358,13 +263,10 @@ class BiliBiliParser:
             # 如果当前 hostname 就是目标 host，则直接返回原始 URL
             if hostname == target:
                 return url
-            # 否则不论原始 hostname 是什么，都替换为目标 host（保留 path 和其他查询参数）
-            new_netloc = target
-            orig_qs = dict(parse_qsl(parsed.query, keep_blank_values=True))
-            orig_qs['os'] = 'estgcos'
-            new_parsed = parsed._replace(netloc=new_netloc, query=urlencode(orig_qs, doseq=True))
+            # 仅替换 host（netloc），保留原始的 path/query 不变以避免破坏上游签名参数
+            new_parsed = parsed._replace(netloc=target)
             new_url = urlunparse(new_parsed)
-            logger.debug('将 CDN 主机替换为统一 host：%s -> %s', hostname, new_netloc)
+            logger.debug('将 CDN 主机替换为统一 host（保留查询参数）：%s -> %s', hostname, target)
             return new_url
         except Exception:
             # 发生任何异常时，保持原始 URL

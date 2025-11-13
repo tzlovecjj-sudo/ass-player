@@ -17,7 +17,9 @@ class CacheManager:
     """缓存管理器"""
     
     def __init__(self, enabled: bool = True, ttl: int = 3600):
-        self.enabled = enabled
+        # 缓存已被移除：保留接口但不再存储任何数据
+        # 为保持向后兼容，保留 enabled/ttl 属性，但实现为无操作
+        self.enabled = False
         self.ttl = ttl
         self._cache: Dict[str, Dict[str, Any]] = {}
         
@@ -27,46 +29,25 @@ class CacheManager:
     
     def get(self, url: str) -> Optional[Dict[str, Any]]:
         """获取缓存数据"""
-        if not self.enabled:
-            return None
-            
-        key = self._generate_key(url)
-        cached_data = self._cache.get(key)
-        
-        if cached_data:
-            # 检查是否过期
-            if time.time() - cached_data['timestamp'] < self.ttl:
-                logger.debug("缓存命中: %s", url)
-                return cached_data['data']
-            else:
-                # 清理过期缓存
-                del self._cache[key]
-                logger.debug("缓存过期: %s", url)
-        
+        # 缓存已禁用，始终返回 None
         return None
     
     def set(self, url: str, data: Dict[str, Any]) -> None:
         """设置缓存数据"""
-        if not self.enabled:
-            return
-            
-        key = self._generate_key(url)
-        self._cache[key] = {
-            'data': data,
-            'timestamp': time.time()
-        }
-        logger.debug("缓存设置: %s", url)
+        # no-op: 不再写入缓存
+        return
     
     def clear(self) -> None:
         """清空缓存"""
+        # 清空无操作缓存（兼容调用）
         self._cache.clear()
-        logger.info("缓存已清空")
+        logger.info("缓存功能已禁用，已清空（无实际缓存）")
     
     def get_stats(self) -> Dict[str, Any]:
         """获取缓存统计信息"""
         return {
-            'enabled': self.enabled,
-            'size': len(self._cache),
+            'enabled': False,
+            'size': 0,
             'ttl': self.ttl
         }
 
