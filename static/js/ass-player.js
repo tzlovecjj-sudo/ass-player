@@ -55,6 +55,8 @@ export default class EmbeddedASSPlayer {
         
         // 默认字幕样式
         this.defaultStyle = DEFAULT_STYLES;
+        // 播放器配置（供其他模块统一读取，例如全屏控件的隐藏延迟）
+        this.PLAYER_CONFIG = PLAYER_CONFIG;
 
         // 实例化核心组件
         this.subtitleRenderer = new SubtitleRenderer(this);

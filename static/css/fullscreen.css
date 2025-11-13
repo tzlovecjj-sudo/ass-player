@@ -62,10 +62,14 @@
     background: rgba(45, 45, 45, 0.85) !important;
     backdrop-filter: blur(5px) !important;
     padding: 10px 15px !important;
+    /* 隐藏时不拦截指针事件，避免遮挡底层区域 */
+    pointer-events: none !important;
 }
 
 .web-fullscreen-mode .controls.visible {
     opacity: 1 !important;
+    /* 仅在可见时响应交互 */
+    pointer-events: auto !important;
 }
 
 /* 浏览器全屏样式 */
@@ -131,10 +135,14 @@
     background: rgba(45, 45, 45, 0.85) !important;
     backdrop-filter: blur(5px) !important;
     padding: 10px 15px !important;
+    /* 隐藏时不拦截指针事件，避免遮挡底层区域 */
+    pointer-events: none !important;
 }
 
 .browser-fullscreen-mode .controls.visible {
     opacity: 1 !important;
+    /* 仅在可见时响应交互 */
+    pointer-events: auto !important;
 }
 
 .fullscreen-btn.active {

@@ -10,6 +10,12 @@ export default class FullscreenControls {
         this.isBrowserFullscreen = false; // 标志：是否处于浏览器原生全屏模式
         this.controlsHideTimeout = null; // 用于控制栏自动隐藏的定时器 ID
         this.mouseMoveTimeout = null; // 用于鼠标移动检测的定时器 ID (当前未使用)
+
+        // 文档级交互事件引用（便于添加/移除监听）
+        // 使用绑定后的固定引用，确保 removeEventListener 可正常移除
+        this._onDocMouseMove = this.handleDocumentMouseMove.bind(this);
+        this._onDocTouch = this.handleDocumentTouch.bind(this);
+        this._listenersAttached = false; // 是否已在全屏模式下附加文档级监听
     }
 
     // --- 全屏功能切换 ---
@@ -194,6 +200,9 @@ export default class FullscreenControls {
         
         // 立即显示控制栏
         this.showControls();
+
+        // 在全屏模式下附加文档级交互监听，确保任何位置的移动/触摸都能唤醒控制栏
+        this.addFullscreenInteractionListeners();
         
         // 设置一个定时器，在 PLAYER_CONFIG.controlsHideDelay 毫秒后隐藏控制栏
         this.controlsHideTimeout = setTimeout(() => {
@@ -241,6 +250,8 @@ export default class FullscreenControls {
      */
     showControlsPermanently() {
         this.clearAllControlTimeouts(); // 清除所有定时器
+        // 退出或暂停全屏行为时，移除文档级监听，避免泄漏
+        this.removeFullscreenInteractionListeners();
         
         if (this.player.controls) {
             this.player.controls.classList.add('visible'); // 确保控制栏可见
@@ -289,6 +300,43 @@ export default class FullscreenControls {
             this.controlsHideTimeout = setTimeout(() => {
                 this.hideControls();
             }, this.player.PLAYER_CONFIG.controlsHideDelay);
+        }
+    }
+
+    // --- 文档级交互监听（增强） ---
+    /**
+     * 在全屏模式下附加文档级鼠标/触摸监听，确保任意位置的交互都能临时显示控制栏。
+     */
+    addFullscreenInteractionListeners() {
+        if (this._listenersAttached) return;
+        document.addEventListener('mousemove', this._onDocMouseMove, { passive: true });
+        document.addEventListener('touchstart', this._onDocTouch, { passive: true });
+        document.addEventListener('touchmove', this._onDocTouch, { passive: true });
+        this._listenersAttached = true;
+    }
+
+    /**
+     * 移除文档级交互监听。
+     */
+    removeFullscreenInteractionListeners() {
+        if (!this._listenersAttached) return;
+        document.removeEventListener('mousemove', this._onDocMouseMove);
+        document.removeEventListener('touchstart', this._onDocTouch);
+        document.removeEventListener('touchmove', this._onDocTouch);
+        this._listenersAttached = false;
+    }
+
+    /** 文档级鼠标移动处理器 */
+    handleDocumentMouseMove() {
+        if (this.isWebFullscreen || this.isBrowserFullscreen) {
+            this.showControlsTemporarily();
+        }
+    }
+
+    /** 文档级触摸处理器（移动端/触摸屏） */
+    handleDocumentTouch() {
+        if (this.isWebFullscreen || this.isBrowserFullscreen) {
+            this.showControlsTemporarily();
         }
     }
 }
