@@ -123,26 +123,18 @@ def auto_parse():
                 content_length = _parser._content_length_cache.get(video_url)
             except Exception:
                 content_length = None
-            # 支持通过环境变量允许在域名部署时也返回可直接播放的 video_url（默认关闭以避免被滥用）
-            allow_remote_play = os.environ.get('ALLOW_REMOTE_PLAY', '0') in ('1', 'true', 'True')
-            if is_local or allow_remote_play:
-                # 返回直链与下载链接
-                resp = {'success': True, 'video_url': video_url, 'download_url': video_url, 'quality': quality, 'message': f'解析成功 ({quality})'}
-                if content_length:
-                    resp['content_length'] = content_length
-                return jsonify(resp)
-            else:
-                # 域名访问，默认不直接返回 video_url（以避免可能的防盗链/滥用），仅提供下载链接和说明
-                resp = {
-                    'success': True,
-                    'video_url': None,
-                    'quality': quality,
-                    'download_url': video_url,
-                    'message': '出于平台防盗链和跨域保护，默认不直接返回可播放直链；如需直接播放可在配置中开启 ALLOW_REMOTE_PLAY。'
-                }
-                if content_length:
-                    resp['content_length'] = content_length
-                return jsonify(resp)
+            # 按照解析结果决定行为：如果解析器返回了可用的 video_url，则在响应中包含它
+            # 前端可据此决定直接播放或同时显示下载提示。保留 download_url 与 content_length 以便下载/显示大小。
+            resp = {
+                'success': True,
+                'video_url': video_url,
+                'quality': quality,
+                'download_url': video_url,
+                'message': f'解析成功 ({quality})'
+            }
+            if content_length:
+                resp['content_length'] = content_length
+            return jsonify(resp)
         else:
             logger.warning('无法为 %s 获取视频直链', bilibili_url)
             return jsonify({'success': False, 'error': '无法获取视频直链', 'message': '请检查视频链接是否正确，或尝试其他视频'}), 502
