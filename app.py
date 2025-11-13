@@ -7,7 +7,8 @@ import logging
 import threading
 import time
 import re  # 导入正则表达式库
-from flask import Flask, render_template, send_from_directory, request, jsonify
+import requests  # 用于后端代理视频流
+from flask import Flask, render_template, send_from_directory, request, jsonify, Response
 
 # 从 ass_player 模块导入 Bilibili 解析器
 from ass_player.bilibili import BiliBiliParser
@@ -118,6 +119,28 @@ def auto_parse():
         # 如果解析过程中发生任何异常，记录日志并返回 500 错误
         logger.exception('解析 URL 时发生错误')
         return jsonify({'success': False, 'error': f'解析失败: {str(e)}', 'message': '解析过程中出现错误'}), 500
+
+# 视频直链代理接口，解决CORS跨域问题
+@app.route('/api/proxy')
+def proxy():
+    video_url = request.args.get('url')
+    if not video_url or not video_url.startswith('http'):
+        return jsonify({'error': '无效的URL'}), 400
+    try:
+        # 流式转发视频内容
+        r = requests.get(video_url, stream=True, timeout=10, headers={
+            'User-Agent': request.headers.get('User-Agent', 'Mozilla/5.0')
+        })
+        def generate():
+            for chunk in r.iter_content(chunk_size=8192):
+                if chunk:
+                    yield chunk
+        resp = Response(generate(), content_type=r.headers.get('Content-Type', 'video/mp4'))
+        # 允许跨域
+        resp.headers['Access-Control-Allow-Origin'] = '*'
+        return resp
+    except Exception as e:
+        return jsonify({'error': f'代理失败: {str(e)}'}), 502
 
 # 当该脚本作为主程序直接运行时，执行以下代码
 if __name__ == '__main__':
