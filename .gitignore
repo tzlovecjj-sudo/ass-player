@@ -14,3 +14,12 @@ ENV/
 # OS
 .DS_Store
 Thumbs.db
+
+# Pytest and coverage
+.pytest_cache/
+.coverage
+coverage.xml
+
+# Tools
+.mypy_cache/
+.ruff_cache/
