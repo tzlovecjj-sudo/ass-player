@@ -9,7 +9,6 @@ import time
 import re  # 导入正则表达式库
 import requests  # 用于后端代理视频流
 from flask import Flask, render_template, send_from_directory, request, jsonify, Response
-from flask_cors import CORS  # 新增导入
 
 # 从 ass_player 模块导入 Bilibili 解析器
 from ass_player.bilibili import BiliBiliParser
@@ -22,7 +21,6 @@ logger = logging.getLogger(__name__)
 base_dir = os.path.dirname(os.path.abspath(__file__))
 # 初始化 Flask 应用，并指定模板和静态文件目录
 app = Flask(__name__, template_folder=os.path.join(base_dir, 'templates'), static_folder=os.path.join(base_dir, 'static'))
-CORS(app, supports_credentials=True)  # 启用全局 CORS 支持
 
 # 创建一个共享的 BiliBiliParser 实例，以便在多个请求之间复用 HTTP 会话，提高效率
 _parser = BiliBiliParser()
