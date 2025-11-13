@@ -80,19 +80,20 @@ export default class UIController {
     showStatus(message, type, elementId = 'uploadStatus') {
         const statusEl = document.getElementById(elementId);
         if (!statusEl) {
-            // 如果找不到指定的元素，则在控制台输出日志作为备用方案
             console.log(`状态 [${type}]: ${message}`);
             return;
         }
-        
-        statusEl.textContent = message;
-        statusEl.className = `status ${type}`; // 应用基础样式和特定类型的样式
-        
-        // 设置一个定时器，在 5 秒后清除消息
-        setTimeout(() => {
-            statusEl.textContent = '';
-            statusEl.className = 'status';
-        }, 5000);
+        // 支持 HTML 内容
+        statusEl.innerHTML = `<span>${message}</span><button id="closeStatusBtn" style="margin-left:10px;">关闭</button>`;
+        statusEl.className = `status ${type}`;
+        // 绑定关闭按钮
+        const closeBtn = document.getElementById('closeStatusBtn');
+        if (closeBtn) {
+            closeBtn.onclick = () => {
+                statusEl.innerHTML = '';
+                statusEl.className = 'status';
+            };
+        }
     }
 
     // --- 工具方法 ---

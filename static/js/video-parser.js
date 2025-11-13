@@ -70,23 +70,19 @@ export default class VideoParser {
             console.log('🔄 正在调用后端自动化解析 API...');
             const response = await fetch(`${this.autoParseApi}?url=${encodeURIComponent(url)}`);
             const data = await response.json();
-            // 新增：如果是域名访问，后端返回 download_url 和 message
             if (data.success && data.video_url) {
                 console.log('✅ 后端自动化解析成功，获取到视频 URL:', data.video_url);
                 return data.video_url;
             } else if (data.success && data.download_url && data.message) {
-                // 域名访问，不能直接播放，显示下载提示
                 this.showDownloadGuide(data.download_url, data.message, url);
                 throw new Error('当前环境下无法直接在线播放，请下载后本地播放。');
             } else {
                 const errorMessage = data.error || '后端自动化解析失败，未提供具体错误信息。';
                 console.error('❌ 后端自动化解析失败:', errorMessage);
-                this.showManualGuide(url, errorMessage);
                 throw new Error(errorMessage);
             }
         } catch (error) {
             console.error('❌ 调用后端自动化解析 API 时发生错误:', error);
-            this.showManualGuide(url, error.message || '网络请求失败');
             throw error;
         }
     }
@@ -128,75 +124,6 @@ export default class VideoParser {
         };
     }
 
-    /**
-     * 当自动化解析失败时，显示手动解析的指南和备用方案。
-     * @param {string} originalUrl - 原始的 Bilibili 视频 URL
-     * @param {string} errorMessage - 自动化解析失败的错误信息
-     */
-    showManualGuide(originalUrl, errorMessage) {
-        // 构建 HTML 字符串，包含手动解析的步骤和相关链接/按钮
-        const guideHtml = `
-            <div class="parse-guide" style="
-                background: #fff3cd; /* 浅黄色背景 */
-                border: 1px solid #ffeaa7; /* 边框 */
-                border-radius: 8px; /* 圆角 */
-                padding: 20px;
-                margin: 15px 0;
-                text-align: left;
-            ">
-                <h3 style="margin-top: 0; color: #856404;">⚠️ 自动化解析失败</h3>
-                <p><strong>错误信息: ${errorMessage}</strong></p>
-                <p>请尝试使用手动解析方法：</p>
-                <ol style="margin-bottom: 15px;">
-                    <li>点击下方链接打开 SnapAny 网站。</li>
-                    <li>将原始 Bilibili 视频 URL 粘贴到 SnapAny 的输入框中。</li>
-                    <li>点击 "提取视频图片" 按钮。</li>
-                    <li>等待解析完成，点击 "下载视频" 按钮。</li>
-                    <li>在新打开的标签页中复制视频的直接播放链接 (直链 URL)。</li>
-                    <li>回到本页面，将复制的直链粘贴到上方的 "在线视频URL" 输入框中，然后点击 "加载在线视频"。</li>
-                </ol>
-                <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                    <a href="https://snapany.com/zh/bilibili" target="_blank" 
-                       style="background: #2c5aa0; color: white; padding: 10px 15px; 
-                              border-radius: 5px; text-decoration: none; display: inline-flex; 
-                              align-items: center; gap: 5px;">
-                        🔗 打开 SnapAny
-                    </a>
-                    <button onclick="copyBilibiliUrl('${originalUrl}')" 
-                            style="background: #28a745; color: white; padding: 10px 15px; 
-                                   border-radius: 5px; border: none; cursor: pointer;
-                                   display: inline-flex; align-items: center; gap: 5px;">
-                        📋 复制 Bilibili 链接
-                    </button>
-                </div>
-                <div style="margin-top: 15px; font-size: 0.9em; color: #856404;">
-                    <strong>💡 提示：</strong> 获取到视频直链后，直接粘贴到上方的"在线视频URL"输入框即可播放。
-                </div>
-            </div>
-        `;
-        
-        // 将生成的 HTML 插入到状态显示区域
-        const statusEl = document.getElementById('uploadStatus');
-        if (statusEl) {
-            statusEl.innerHTML = guideHtml;
-        }
-        
-        // 在全局作用域中定义一个辅助函数，用于复制 URL 到剪贴板
-        window.copyBilibiliUrl = function(url) {
-            navigator.clipboard.writeText(url).then(() => {
-                alert('✅ Bilibili 链接已复制到剪贴板。');
-            }).catch(() => {
-                // 如果 navigator.clipboard 不可用（例如非 HTTPS 环境），提供备用复制方案
-                const textArea = document.createElement('textarea');
-                textArea.value = url;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy'); // 旧版浏览器 API
-                document.body.removeChild(textArea);
-                alert('✅ Bilibili 链接已复制到剪贴板。');
-            });
-        };
-    }
 
     /**
      * 验证一个 URL 是否为有效的视频直接播放链接。
