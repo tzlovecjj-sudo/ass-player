@@ -121,28 +121,51 @@ export default class FileHandler {
      * @param {string} videoUrl - 直接播放的直链
      * @param {string} originalUrl - 原始用户输入的 URL（用于更新 UI）
      */
-    loadOnlineVideoWithUrl(videoUrl, originalUrl = '') {
+    loadOnlineVideoWithUrl(videoUrl, originalUrl = '', size = null) {
         if (!videoUrl) {
             this.player.showStatus('未提供有效的视频直链。', 'error');
             return;
         }
         console.log('通过直链加载视频：', videoUrl);
-        // 如果是 Bilibili/bilivideo 的视频源，尝试使用带 Referer 的 fetch -> Blob 回退加载，能在部分防盗链场景工作
+
+        // 先设置播放成功与失败的回调处理器（确保无论哪种加载方式都能触发）
+        this.player.videoPlayer.oncanplay = () => {
+            this.player.showStatus('视频加载完成，正在播放...', 'success');
+            this.player.videoPlayer.play().catch(() => {});
+            this.player.updateOnlineVideoInfo(originalUrl || videoUrl);
+            // 只有在成功加载播放时才展示下载提示（按照你的需求）
+            try {
+                this.player.uiController.showDownloadPanel(videoUrl, '视频下载链接', size);
+            } catch (e) {
+                console.debug('显示下载面板失败:', e);
+            }
+        };
+
+        this.player.videoPlayer.onerror = () => {
+            console.error('加载视频失败，播放不可用；不展示下载链接。');
+            this.player.showStatus('无法播放该视频（可能受防盗链或链接签名限制）。', 'error');
+        };
+
+        // 如果是 Bilibili/bilivideo 的视频源，优先尝试使用带 Referer 的 fetch -> Blob 回退加载
+        let attempted = false;
         try {
             if (videoUrl.includes('bilivideo.com') || videoUrl.includes('upos') || videoUrl.includes('bilibili')) {
-                // 使用播放器提供的方法尝试带 headers 的加载（如果实现可用）
                 if (typeof this.player.videoParser !== 'undefined' && typeof this.player.videoParser.setupBilibiliVideoHeaders === 'function') {
+                    attempted = true;
+                    // setupBilibiliVideoHeaders 会处理加载并触发上面的 oncanplay/onerror
                     this.player.videoParser.setupBilibiliVideoHeaders(this.player.videoPlayer, videoUrl);
-                    return;
                 }
             }
         } catch (e) {
             console.warn('尝试使用带 Referer 的加载回退失败，退回到直接设置 src', e);
+            attempted = false;
         }
 
-        // 默认直接设置 src
-        this.player.videoPlayer.src = videoUrl;
-        this.player.videoPlayer.load();
+        if (!attempted) {
+            // 直接设置 src 和加载
+            this.player.videoPlayer.src = videoUrl;
+            try { this.player.videoPlayer.load(); } catch (e) { console.debug('video.load() 抛出异常', e); }
+        }
 
         // 处理加载成功
         this.player.videoPlayer.oncanplay = () => {

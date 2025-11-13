@@ -45,7 +45,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     if (data.success && data.video_url) {
                         // 直接播放：使用专门的方法通过直链加载并处理播放失败
-                        window.player.fileHandler.loadOnlineVideoWithUrl(data.video_url, url);
+                        // 同时把服务器返回的 content_length 传入，供下载面板显示
+                        window.player.fileHandler.loadOnlineVideoWithUrl(data.video_url, url, data.content_length);
                     } else if (data.success) {
                         // 如果解析成功但没有可播放直链，尝试使用 download_url 或 video_url 作为备用下载链接
                         const dlUrl = data.download_url || data.video_url;
@@ -63,48 +64,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             };
         }
-        if (downloadBtn && urlInput) {
-            downloadBtn.textContent = '下载';
-            downloadBtn.onclick = async () => {
-                const url = urlInput.value.trim();
-                if (!url) {
-                    window.player.showStatus('请输入有效的视频 URL。', 'error');
-                    return;
-                }
-                // 防抖：禁用按钮 1500ms，避免触发后端速率限制
-                downloadBtn.disabled = true;
-                setTimeout(() => { downloadBtn.disabled = false; }, 1500);
-                window.player.showStatus('正在获取下载链接...', 'info');
-                try {
-                    const resp = await fetch(`/api/auto-parse?url=${encodeURIComponent(url)}`);
-                    const status = resp.status;
-                    const data = await resp.json().catch(() => ({}));
-                    if (status === 429) {
-                        // rate-limited: 提示并返回
-                        window.player.showStatus(data.error || '请求过于频繁，请稍后重试。', 'error');
-                        return;
-                    }
-                    // 优先使用 download_url，如无再退回到 video_url
-                    const dlUrl = data.download_url || data.video_url;
-                    if (data.success && dlUrl) {
-                        // 强制下载并展示持久下载面板，确保用户可手动复制或打开链接
-                        const a = document.createElement('a');
-                        a.href = dlUrl;
-                        a.download = '';
-                        a.target = '_blank';
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        window.player.uiController.showDownloadPanel(dlUrl, '视频下载链接', data.content_length);
-                    } else {
-                        window.player.showStatus(data.error || '未获取到下载链接。', 'error');
-                    }
-                } catch (e) {
-                    console.error('获取下载链接异常:', e);
-                    window.player.showStatus('获取下载链接失败，请检查网络或稍后重试。', 'error');
-                }
-            };
-        }
+        // 下载按钮已移除：不再提供单独的下载按钮，下载提示将仅在加载成功时显示
 
         // --- 在线 Demo：默认加载示例字幕与对应 B 站视频（仅本地演示时自动加载） ---
         if (isLocal) {
