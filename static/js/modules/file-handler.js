@@ -127,6 +127,20 @@ export default class FileHandler {
             return;
         }
         console.log('通过直链加载视频：', videoUrl);
+        // 如果是 Bilibili/bilivideo 的视频源，尝试使用带 Referer 的 fetch -> Blob 回退加载，能在部分防盗链场景工作
+        try {
+            if (videoUrl.includes('bilivideo.com') || videoUrl.includes('upos') || videoUrl.includes('bilibili')) {
+                // 使用播放器提供的方法尝试带 headers 的加载（如果实现可用）
+                if (typeof this.player.videoParser !== 'undefined' && typeof this.player.videoParser.setupBilibiliVideoHeaders === 'function') {
+                    this.player.videoParser.setupBilibiliVideoHeaders(this.player.videoPlayer, videoUrl);
+                    return;
+                }
+            }
+        } catch (e) {
+            console.warn('尝试使用带 Referer 的加载回退失败，退回到直接设置 src', e);
+        }
+
+        // 默认直接设置 src
         this.player.videoPlayer.src = videoUrl;
         this.player.videoPlayer.load();
 
