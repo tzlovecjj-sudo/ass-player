@@ -191,31 +191,11 @@ export default class UIController {
 
         container.appendChild(info);
 
-        // 异步尝试获取文件大小（HEAD 或 Range 请求）。注意：可能被 CDN 的 CORS 限制阻止。
-        if (!size) {
-            (async () => {
-                const self = this;
-                try {
-                    // 优先尝试 HEAD 请求以获取 Content-Length
-                    let resp = await fetch(url, { method: 'HEAD' });
-                    let s = resp.headers.get('content-length');
-                    if (!s) {
-                        // 如果 HEAD 没有返回长度，尝试 Range 请求以读取响应头中的 Content-Range
-                        resp = await fetch(url, { method: 'GET', headers: { 'Range': 'bytes=0-0' } });
-                        s = resp.headers.get('content-length') || (resp.headers.get('content-range') ? resp.headers.get('content-range').split('/')[1] : null);
-                    }
-                    if (s) {
-                        const n = parseInt(s, 10);
-                        const pretty = self.formatFileSize ? self.formatFileSize(n) : (n ? `${(n / 1024).toFixed(2)} KB` : '未知');
-                        sizeEl.textContent = `大小：${pretty}`;
-                    } else {
-                        sizeEl.textContent = '大小：未知';
-                    }
-                } catch (e) {
-                    // 可能被 CORS 阻止或网络错误
-                    sizeEl.textContent = '大小：未知';
-                }
-            })();
+    // 不再主动尝试通过 HEAD/Range 请求获取远端文件大小（避免阻塞）
+        if (size && typeof size === 'number') {
+            sizeEl.textContent = `大小：${this.formatFileSize(size)}`;
+        } else {
+            sizeEl.textContent = '大小：未知';
         }
 
         statusEl.appendChild(container);

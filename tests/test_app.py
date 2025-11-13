@@ -90,9 +90,9 @@ class TestFlaskApp(unittest.TestCase):
         # 立即第二次请求（应该被限制）
         response2 = self.app.get('/api/auto-parse?url=https://www.bilibili.com/video/BV1xx411c7mD')
         
-        # 至少有一个应该返回429
+        # 速率限制已移除：不应返回429
         status_codes = [response1.status_code, response2.status_code]
-        self.assertTrue(429 in status_codes)
+        self.assertNotIn(429, status_codes)
 
 
 if __name__ == '__main__':

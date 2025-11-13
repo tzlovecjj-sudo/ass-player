@@ -7,6 +7,8 @@ export default class FileHandler {
     constructor(player) {
         this.player = player; // 保存对主播放器实例的引用
     }
+ 
+    
 
     /**
      * 加载未获取到下载链接。本地视频文件。
@@ -126,59 +128,33 @@ export default class FileHandler {
             this.player.showStatus('未提供有效的视频直链。', 'error');
             return;
         }
-        console.log('通过直链加载视频：', videoUrl);
-
-        // 先设置播放成功与失败的回调处理器（确保无论哪种加载方式都能触发）
-        this.player.videoPlayer.oncanplay = () => {
-            this.player.showStatus('视频加载完成，正在播放...', 'success');
-            this.player.videoPlayer.play().catch(() => {});
-            this.player.updateOnlineVideoInfo(originalUrl || videoUrl);
-            // 只有在成功加载播放时才展示下载提示（按照你的需求）
-            try {
-                this.player.uiController.showDownloadPanel(videoUrl, '视频下载链接', size);
-            } catch (e) {
-                console.debug('显示下载面板失败:', e);
-            }
-        };
-
-        this.player.videoPlayer.onerror = () => {
-            console.error('加载视频失败，播放不可用；不展示下载链接。');
-            this.player.showStatus('无法播放该视频（可能受防盗链或链接签名限制）。', 'error');
-        };
-
-        // 如果是 Bilibili/bilivideo 的视频源，优先尝试使用带 Referer 的 fetch -> Blob 回退加载
-        let attempted = false;
+        // 后端已返回直链：立即把直链设置到播放器并尝试播放，同时展示下载面板供用户下载/打开
         try {
-            if (videoUrl.includes('bilivideo.com') || videoUrl.includes('upos') || videoUrl.includes('bilibili')) {
-                if (typeof this.player.videoParser !== 'undefined' && typeof this.player.videoParser.setupBilibiliVideoHeaders === 'function') {
-                    attempted = true;
-                    // setupBilibiliVideoHeaders 会处理加载并触发上面的 oncanplay/onerror
-                    this.player.videoParser.setupBilibiliVideoHeaders(this.player.videoPlayer, videoUrl);
-                }
-            }
+            // 更新 UI 上的在线视频信息（显示原始 URL 或直链）
+            this.player.updateOnlineVideoInfo(originalUrl || videoUrl);
         } catch (e) {
-            console.warn('尝试使用带 Referer 的加载回退失败，退回到直接设置 src', e);
-            attempted = false;
+            console.debug('更新在线视频信息失败：', e);
         }
 
-        if (!attempted) {
-            // 直接设置 src 和加载
+        // 1) 尝试把直链放到播放器上（不做任何自定义请求头或 fetch 回退）
+        try {
+            console.log('设置播放器直链并尝试加载播放：', videoUrl);
             this.player.videoPlayer.src = videoUrl;
             try { this.player.videoPlayer.load(); } catch (e) { console.debug('video.load() 抛出异常', e); }
+            // 尝试自动播放（若浏览器阻止自动播放，将由浏览器策略决定）
+            this.player.videoPlayer.play().catch((e) => { console.debug('自动 play() 被阻止或失败：', e); });
+        } catch (e) {
+            console.debug('将直链设置到播放器时出错：', e);
         }
 
-        // 处理加载成功
-        this.player.videoPlayer.oncanplay = () => {
-            this.player.showStatus('视频加载完成，正在播放...', 'success');
-            this.player.videoPlayer.play().catch(() => {});
-            this.player.updateOnlineVideoInfo(originalUrl || videoUrl);
-        };
-
-        // 处理加载失败：提示下载（持久显示带手动链接）
-        this.player.videoPlayer.onerror = () => {
-            console.error('加载视频失败，准备提示下载链接');
-            // 使用更人性化的下载面板，包含复制/在新标签打开/强制下载功能，且为持久显示
-            this.player.uiController.showDownloadPanel(videoUrl, '视频下载链接');
-        };
+        // 2) 同时展示下载面板（始终可见，供手动下载或在新标签打开）
+        try {
+            this.player.uiController.showDownloadPanel(videoUrl, '视频下载链接', size);
+            this.player.showStatus('已获取视频直链，已设置播放器并展示下载链接。', 'success');
+        } catch (e) {
+            console.error('展示下载面板失败：', e);
+            // 兜底：在状态栏显示直链文本
+            this.player.showStatus(`已获取视频直链： ${videoUrl}`, 'info');
+        }
     }
 }

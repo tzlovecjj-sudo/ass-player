@@ -131,15 +131,42 @@ export default class VideoController {
         console.log('视频元数据已加载。');
         this.player.setupCanvas(); // 根据视频尺寸设置 Canvas 大小
         this.updateTotalTime();    // 更新总时长显示
-        this.player.showStatus('视频已加载，可以播放。', 'success');
-        
-        // 自动播放视频
-        this.player.videoPlayer.play().then(() => {
-            console.log('视频自动播放成功');
-        }).catch(error => {
-            console.warn('视频自动播放失败:', error);
-            this.player.showStatus('自动播放失败，请手动点击播放按钮', 'warning');
-        });
+        // 如果播放器已经有可用的直链/源，则优先展示下载面板（覆盖可能的临时提示），
+        // 以便用户能直接看到并复制/下载直链；否则显示简短成功提示。
+        try {
+            const src = this.player.videoPlayer.currentSrc || this.player.videoPlayer.src || '';
+            if (src) {
+                // 显示下载面板，标签指出视频已加载
+                try { this.player.uiController.showDownloadPanel(src, '视频下载链接（已加载）'); } catch (e) { console.debug('显示下载面板失败：', e); }
+            } else {
+                this.player.showStatus('视频已加载，可以播放。', 'success');
+            }
+        } catch (e) {
+            console.debug('onVideoLoaded 处理下载面板时出错：', e);
+            this.player.showStatus('视频已加载，可以播放。', 'success');
+        }
+
+        // 自动播放尝试：仅在视频当前处于暂停或尚未播放时才调用 play()
+        const vp = this.player.videoPlayer;
+        const isActuallyPlaying = vp && !vp.paused && !vp.ended && vp.readyState > 2;
+        if (!isActuallyPlaying) {
+            vp.play().then(() => {
+                console.log('视频自动播放成功');
+            }).catch(error => {
+                // 有些浏览器会在内部静音后播放（或其他策略），导致 play() 的 Promise 行为不同。
+                // 如果当前视频实际上已经在播放，视为成功；否则显示友好提示。
+                const nowPlaying = vp && !vp.paused && (vp.currentTime > 0 || vp.readyState > 2);
+                if (nowPlaying) {
+                    console.log('play() 返回 rejected，但视频已在播放，视为成功。', error);
+                } else {
+                    // 当 play() 返回 rejected 且视频未实际开始播放时，记录到控制台但不向用户展示自动播放失败的警告。
+                    // 之前显示的 "自动播放失败，请手动点击播放按钮" 提示被移除，避免误导用户。
+                    console.warn('视频自动播放被拒绝或失败（已记录，但不显示 UI 提示）:', error);
+                }
+            });
+        } else {
+            console.log('视频已在播放，无需再次调用 play()。');
+        }
     }
 
     /**

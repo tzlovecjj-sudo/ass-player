@@ -7,13 +7,15 @@ import os
 import logging
 import sqlite3
 from app import app
+from config import get_config
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
 def main():
     logging.info('Starting ASS Player (run.py)')
-    host = os.environ.get('ASS_PLAYER_HOST', '127.0.0.1')
-    port = int(os.environ.get('ASS_PLAYER_PORT', 5000))
+    cfg = get_config()
+    host = cfg.HOST
+    port = cfg.PORT
     # 在应用启动时创建并注入 SQLite 本地磁盘缓存连接（由应用负责打开/关闭）
     db_path = os.path.join(os.path.dirname(__file__), 'ass_player', 'bilibili_cache.db')
     conn = None

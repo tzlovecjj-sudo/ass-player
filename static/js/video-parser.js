@@ -74,8 +74,8 @@ export default class VideoParser {
                 console.log('✅ 后端自动化解析成功，获取到视频 URL:', data.video_url);
                 return data.video_url;
             } else if (data.success && data.download_url && data.message) {
-                // forward optional content_length from server to the download guide
-                this.showDownloadGuide(data.download_url, data.message, url, data.content_length);
+                // 提示用户下载（服务器不再返回文件大小）
+                this.showDownloadGuide(data.download_url, data.message, url);
                 throw new Error('当前环境下无法直接在线播放，请下载后本地播放。');
             } else {
                 const errorMessage = data.error || '后端自动化解析失败，未提供具体错误信息。';
@@ -172,75 +172,8 @@ export default class VideoParser {
         throw new Error('输入的不是有效的视频直链。');
     }
 
-    /**
-     * 为 Bilibili 视频 URL 设置正确的 Referer 头，以解决跨域播放问题。
-     * Bilibili 的视频源通常需要特定的 Referer 头才能播放。
-     * @param {HTMLVideoElement} videoElement - 视频 DOM 元素
-     * @param {string} videoUrl - Bilibili 视频的直接播放 URL
-     */
+    // 直接将视频 URL 设置到 video 元素，由浏览器发起请求
     setupBilibiliVideoHeaders(videoElement, videoUrl) {
-        if (videoUrl.includes('bilivideo.com')) {
-            console.log('🔧 检测到 Bilibili 视频源，尝试设置请求头以解决跨域问题...');
-            
-            // 尝试方法 1: 使用 Fetch API 获取视频流并创建 Blob URL
-            // 这种方法可以完全控制请求头，但会增加内存使用
-            this.loadVideoWithHeaders(videoElement, videoUrl).catch(error => {
-                console.error('❌ 使用 Fetch API 和 headers 加载 Bilibili 视频失败:', error);
-                // 如果 Fetch API 失败，回退到方法 2
-                // 方法 2: 直接设置 src，并设置 crossOrigin 为 'anonymous'
-                // 这在某些浏览器和服务器配置下可能有效，但 Referer 头无法完全控制
-                videoElement.crossOrigin = 'anonymous'; // 允许跨域加载，但可能仍受 Referer 限制
-                videoElement.src = videoUrl;
-                console.warn('回退到直接设置视频 src，并设置 crossOrigin。');
-            });
-        } else {
-            // 对于非 Bilibili 视频，直接设置 src 即可
-            videoElement.src = videoUrl;
-        }
-    }
-
-    /**
-     * 使用 Fetch API 加载视频流，并设置自定义的请求头（特别是 Referer）。
-     * 成功获取视频流后，将其转换为 Blob URL 并设置给视频元素。
-     * @param {HTMLVideoElement} videoElement - 视频 DOM 元素
-     * @param {string} videoUrl - 视频的直接播放 URL
-     * @returns {Promise<void>}
-     * @throws {Error} 如果 Fetch 请求失败或响应状态码不为 2xx
-     */
-    async loadVideoWithHeaders(videoElement, videoUrl) {
-        try {
-            console.log('🔄 正在使用 Fetch API 加载视频并设置 Referer 头...');
-            const response = await fetch(videoUrl, {
-                headers: {
-                    'Referer': 'https://www.bilibili.com/', // 关键：设置 Referer 头
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36', // 模拟浏览器 UA
-                    'Origin': 'https://www.bilibili.com' // 设置 Origin 头
-                }
-            });
-
-            if (!response.ok) {
-                // 如果 HTTP 响应状态码不是 2xx，则抛出错误
-                throw new Error(`HTTP 错误! 状态码: ${response.status}`);
-            }
-
-            // 将响应体读取为 Blob 对象
-            const blob = await response.blob();
-            // 从 Blob 创建一个临时的 URL
-            const blobUrl = URL.createObjectURL(blob);
-            // 将视频元素的 src 设置为 Blob URL
-            videoElement.src = blobUrl;
-            
-            console.log('✅ 使用 Fetch API 和 headers 成功加载视频。');
-            
-            // 监听视频加载完成事件，在视频加载完成后释放 Blob URL 资源
-            videoElement.addEventListener('loadeddata', () => {
-                URL.revokeObjectURL(blobUrl);
-                console.log('Blob URL 资源已释放。');
-            }, { once: true }); // 确保事件监听器只触发一次
-            
-        } catch (error) {
-            console.error('❌ 使用 Fetch API 加载视频失败:', error);
-            throw error; // 重新抛出错误，以便上层调用者处理
-        }
+        videoElement.src = videoUrl;
     }
 }

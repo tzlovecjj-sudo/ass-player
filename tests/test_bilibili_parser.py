@@ -52,18 +52,7 @@ class TestBilibiliParser(unittest.TestCase):
         
         self.assertIsNone(result)
     
-    @patch('ass_player.bilibili.BiliBiliParser._get_720p_mp4')
-    @patch('ass_player.bilibili.BiliBiliParser._extract_playinfo_from_html')
-    def test_get_real_url_fallback_strategies(self, mock_extract_playinfo, mock_get_720p):
-        """测试fallback策略"""
-        # 所有策略都失败
-        mock_get_720p.return_value = None
-        mock_extract_playinfo.return_value = None
-        
-        result = self.parser.get_real_url(self.valid_bilibili_url)
-        
-        self.assertIsNone(result)
-        mock_get_720p.assert_called_once()
+    # 已移除：fallback 策略相关测试，因为解析器现在仅使用官方 API
     
     def test_detect_actual_quality(self):
         """测试视频质量检测"""
@@ -99,21 +88,7 @@ class TestBilibiliParser(unittest.TestCase):
                 quality_name = self.parser._get_quality_name(quality_id)
                 self.assertEqual(quality_name, expected_name)
 
-    def test_extract_playinfo_from_html(self):
-        """测试从HTML中提取playinfo JSON"""
-        html = '<script>window.__playinfo__ = {"data": {"durl": [{"url": "https://test.com/1.mp4"}]}} </script>'
-        playinfo = self.parser._extract_playinfo_from_html(html)
-        self.assertIsInstance(playinfo, dict)
-        self.assertIn('data', playinfo)
-
-    # 已移除：不再在 HTML 中进行盲目正则搜索 MP4 链接（易误判且带来安全隐患）
-
-    def test_extract_playinfo_json_error(self):
-        """测试playinfo JSON解析异常分支"""
-        # 非法JSON
-        html = '<script>window.__playinfo__ = {bad json </script>'
-        playinfo = self.parser._extract_playinfo_from_html(html)
-        self.assertIsNone(playinfo)
+    # 与 HTML 提取 playinfo 相关的测试已移除，因为解析器不再支持该策略
 
 
 if __name__ == '__main__':

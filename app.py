@@ -25,10 +25,7 @@ app = Flask(__name__, template_folder=os.path.join(base_dir, 'templates'), stati
 # 创建一个共享的 BiliBiliParser 实例，以便在多个请求之间复用 HTTP 会话，提高效率
 _parser = BiliBiliParser()
 
-# 使用字典在内存中实现简单的速率限制
-# 键为客户端的 IP 地址，值为最后一次请求的时间戳
-_last_request = {}  # key: (IP, url)
-_RATE_LIMIT_SECONDS = 1  # 设置同一个客户端同一URL两次请求之间的最小时间间隔（秒）。
+# 之前实现过基于内存的速率限制（已移除）——保留注释以便审计
 
 # 定义根路由，用于渲染主页面
 @app.route('/')
@@ -92,24 +89,14 @@ def auto_parse():
     if 'bilibili.com' not in bilibili_url:
         return jsonify({'success': False, 'error': '仅支持 bilibili.com 域名'}), 400
 
-    # 对每个客户端 IP 地址进行速率限制
-    remote = request.remote_addr or 'unknown'  # 获取客户端 IP
-    now = time.time()  # 获取当前时间戳
-    url_key = f'{remote}:{bilibili_url}'
-    last = _last_request.get(url_key, 0)  # 获取该 IP+URL 的上次请求时间
-    if now - last < _RATE_LIMIT_SECONDS:
-        retry_after = int(_RATE_LIMIT_SECONDS - (now - last)) + 1
-        resp = jsonify({'success': False, 'error': '请求过于频繁', 'retry_after': retry_after})
-        resp.status_code = 429
-        resp.headers['Retry-After'] = str(retry_after)
-        return resp
-    _last_request[url_key] = now  # 更新该 IP+URL 的最后请求时间
+    # 速率限制已移除：允许客户端多次请求而不返回 429（如需限流可在外部代理/网关实现）
 
     # 检测访问来源
     host_header = request.host or ''
     is_local = host_header.startswith('127.0.0.1') or host_header.startswith('localhost')
 
     try:
+        remote = request.remote_addr or 'unknown'
         logger.info('正在为 %s 解析 URL: %s', remote, bilibili_url)
         # 调用解析器获取真实的视频播放地址
         video_url = _parser.get_real_url(bilibili_url)
@@ -117,14 +104,7 @@ def auto_parse():
             quality = _parser._detect_actual_quality(video_url) if hasattr(_parser, '_detect_actual_quality') else '未知'
             logger.info('解析成功: %s (清晰度: %s)', video_url, quality)
             # 无论本地还是域名访问，都返回 download_url（便于前端直接触发下载或展示链接）
-            # 同时如果解析器已缓存该链接的 Content-Length，则一并返回（便于前端显示文件大小）
-            content_length = None
-            try:
-                content_length = _parser._content_length_cache.get(video_url)
-            except Exception:
-                content_length = None
-            # 按照解析结果决定行为：如果解析器返回了可用的 video_url，则在响应中包含它
-            # 前端可据此决定直接播放或同时显示下载提示。保留 download_url 与 content_length 以便下载/显示大小。
+            # 注意：不再尝试获取或返回远端文件大小（Content-Length），以免在本地解析时阻塞。
             resp = {
                 'success': True,
                 'video_url': video_url,
@@ -132,8 +112,6 @@ def auto_parse():
                 'download_url': video_url,
                 'message': f'解析成功 ({quality})'
             }
-            if content_length:
-                resp['content_length'] = content_length
             return jsonify(resp)
         else:
             logger.warning('无法为 %s 获取视频直链', bilibili_url)

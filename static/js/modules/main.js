@@ -18,14 +18,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const loadBtn = document.getElementById('loadOnlineVideoBtn');
         const downloadBtn = document.getElementById('downloadOnlineVideoBtn');
         const urlInput = document.getElementById('onlineVideoUrl');
-        let isLocal = location.hostname === '127.0.0.1' || location.hostname === 'localhost';
+    // 扩展本地判断：当在本机或绑定到 0.0.0.0 时也认为是本地演示环境。
+    // 许多开发场景下服务会绑定到 0.0.0.0 或通过本机局域网 IP 访问，
+    // 我们允许 127.x, localhost, 0.0.0.0 和 IPv6 回环 ::1 自动加载示例。
+    const host = (location.hostname || '').toLowerCase();
+    let isLocal = host === 'localhost' || host === '0.0.0.0' || host === '::1' || host.startsWith('127.');
         if (urlInput && !urlInput.value) {
             urlInput.value = 'https://www.bilibili.com/video/BV1NmyXBTEGD';
         }
 
-        // 防止重复请求和 demo/手动互斥
-        let isParsing = false;
-        let lastParsedUrl = '';
+        // 加载按钮处理（注意：客户端不再实施时间窗口限流，仅在一次点击期间禁用按钮以避免 UI 闪烁）
         if (loadBtn && urlInput) {
             loadBtn.textContent = '加载';
             loadBtn.onclick = async () => {
@@ -34,45 +36,47 @@ document.addEventListener('DOMContentLoaded', function() {
                     window.player.showStatus('请输入有效的视频 URL。', 'error');
                     return;
                 }
-                if (isParsing) {
-                    window.player.showStatus('正在解析中，请勿重复点击。', 'info');
-                    return;
-                }
-                if (lastParsedUrl === url) {
-                    window.player.showStatus('该视频已解析过，请勿重复请求。', 'info');
-                    return;
-                }
-                isParsing = true;
-                loadBtn.disabled = true;
+
+                loadBtn.disabled = true; // 临时禁用按钮，避免用户快速连点
                 window.player.showStatus('正在解析视频链接...', 'info');
                 try {
                     const resp = await fetch(`/api/auto-parse?url=${encodeURIComponent(url)}`);
                     const status = resp.status;
-                    const data = await resp.json().catch(() => ({}));
+                    let data = {};
+                    try {
+                        data = await resp.json();
+                    } catch (jsonErr) {
+                        console.warn('解析 API 返回的 JSON 失败：', jsonErr);
+                        data = {};
+                    }
+                    console.log('auto-parse response:', { status, data });
+
+                    // 如果后端返回 429，前端只展示提示，不在客户端设置额外的时间窗口限制
                     if (status === 429) {
-                        let retry = data.retry_after || 2;
-                        window.player.showStatus((data.error || '请求过于频繁，请稍后重试。') + ` (${retry}s后可重试)`, 'error');
-                        setTimeout(() => { isParsing = false; loadBtn.disabled = false; }, retry * 1000);
+                        const retry = data.retry_after || 2;
+                        window.player.showStatus((data.error || '请求过于频繁，请稍后重试。') + ` （参考: ${retry}s）`, 'error');
                         return;
                     }
-                    if (data.success && data.video_url) {
-                        lastParsedUrl = url;
-                        window.player.fileHandler.loadOnlineVideoWithUrl(data.video_url, url, data.content_length);
-                    } else if (data.success) {
+
+                    if (resp.ok && data && data.success && data.video_url) {
+                        window.player.fileHandler.loadOnlineVideoWithUrl(data.video_url, url);
+                    } else if (data && data.success) {
                         const dlUrl = data.download_url || data.video_url;
                         if (dlUrl) {
-                            window.player.uiController.showDownloadPanel(dlUrl, '视频下载链接', data.content_length);
+                            window.player.uiController.showDownloadPanel(dlUrl, '视频下载链接');
                         } else {
                             window.player.showStatus(data.error || '未获取到视频直链。', 'error');
                         }
                     } else {
-                        window.player.showStatus(data.error || '未获取到视频直链。', 'error');
+                        const errMsg = data && data.error ? data.error : `解析失败，HTTP ${status}`;
+                        console.warn('解析未成功，返回数据：', data);
+                        window.player.showStatus(errMsg || '未获取到视频直链。', 'error');
                     }
                 } catch (e) {
                     console.error('解析视频链接异常:', e);
                     window.player.showStatus('解析视频链接失败，请检查网络或稍后重试。', 'error');
                 } finally {
-                    isParsing = false;
+                    // 始终恢复按钮状态，避免客户端自我节流
                     loadBtn.disabled = false;
                 }
             };
