@@ -66,13 +66,13 @@
 - 生产 / 容器友好（从环境变量控制 host/port）：
   python run.py
   或
-  ASS_PLAYER_HOST=127.0.0.1 ASS_PLAYER_PORT=5000 python run.py
+  ASS_PLAYER_HOST=127.0.0.1 ASS_PLAYER_PORT=8080 python run.py
 
-默认监听地址：127.0.0.1:5000（出于安全考虑默认不对公网暴露，必要时可通过 ASS_PLAYER_HOST 环境变量配置）。
+默认监听地址：127.0.0.1:8080（出于安全考虑默认不对公网暴露，必要时可通过 ASS_PLAYER_HOST 环境变量配置）。
 
 访问界面：
-- 主界面: http://127.0.0.1:5000/
-- 自动解析 API: http://127.0.0.1:5000/api/auto-parse?url=<B站视频页地址>
+- 主界面: http://127.0.0.1:8080/
+- 自动解析 API: http://127.0.0.1:8080/api/auto-parse?url=<B站视频页地址>
 
 ## 安全建议（必须阅读）
 - 默认绑定：默认绑定到本地回环地址 (127.0.0.1)。**千万不要**在没有额外认证或防火墙保护的情况下将服务绑定到 0.0.0.0 并放到公网。

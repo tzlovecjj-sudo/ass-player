@@ -132,7 +132,7 @@ if __name__ == '__main__':
 
     try:
         # 兼容 Zeabur 云平台和本地开发环境
-        port = int(os.environ.get('PORT', os.environ.get('ASS_PLAYER_PORT', 5000)))
+        port = int(os.environ.get('PORT', os.environ.get('ASS_PLAYER_PORT', 8080)))
         host = os.environ.get('ASS_PLAYER_HOST', '0.0.0.0')
 
         # 仅本地开发时自动打开浏览器

@@ -28,7 +28,8 @@ def open_browser():
     time.sleep(2)
     try:
         import webbrowser
-        webbrowser.open_new(f'http://{config.HOST}:{config.PORT}/')
+        port = config.PORT if config.PORT else 8080
+        webbrowser.open_new(f'http://{config.HOST}:{port}/')
     except Exception:
         logger.exception('自动打开浏览器失败')
 

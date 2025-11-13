@@ -13,7 +13,7 @@ class Config:
     
     # Flask配置
     HOST = os.environ.get('ASS_PLAYER_HOST', '127.0.0.1')
-    PORT = int(os.environ.get('ASS_PLAYER_PORT', '5000'))
+    PORT = int(os.environ.get('ASS_PLAYER_PORT', '8080'))
     DEBUG = os.environ.get('ASS_PLAYER_DEBUG', 'false').lower() == 'true'
     
     # 安全配置
