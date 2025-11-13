@@ -59,7 +59,7 @@ class BiliBiliParser:
         video_url = parser.get_real_url("https://www.bilibili.com/video/BV1...")
     """
 
-    def __init__(self, session: Optional[requests.Session] = None, timeout: int = 10, cache_path: Optional[str] = None):
+    def __init__(self, session: Optional[requests.Session] = None, timeout: int = 10, cache_path: Optional[str] = None, disk_cache_conn: Optional[sqlite3.Connection] = None):
         """
         初始化 BiliBiliParser。
 
@@ -91,14 +91,18 @@ class BiliBiliParser:
         import os
         if cache_path is None:
             cache_path = os.path.join(os.path.dirname(__file__), 'bilibili_cache.db')
-        # sqlite 文件路径
+        # sqlite 文件路径（仅作参考；实际连接由应用在启动时创建并注入）
         self._disk_cache_path = cache_path
-        # SQLite 连接（懒打开）
-        self._disk_cache_conn = None
+        # SQLite 连接（由应用传入；如果为 None，则磁盘缓存功能禁用）
+        self._disk_cache_conn = disk_cache_conn
+        # 标记该解析器是否拥有并负责关闭连接（当前实现不创建连接，故默认为 False）
+        self._owns_disk_conn = False
         # 磁盘缓存 TTL（秒），默认 30 分钟
         self._disk_cache_ttl = 1800
         # 缓存表名
         self._disk_cache_table = 'cache'
+        # 表初始化标记（当传入连接时，在首次使用时创建表）
+        self._disk_cache_inited = False
 
         # 设置默认的请求头，模拟移动端浏览器访问
         self.session.headers.update({
@@ -225,8 +229,9 @@ class BiliBiliParser:
             return None
 
     def __del__(self):
+        # 仅在解析器自己创建并拥有连接时负责关闭
         try:
-            if getattr(self, '_disk_cache_conn', None):
+            if getattr(self, '_owns_disk_conn', False) and getattr(self, '_disk_cache_conn', None):
                 try:
                     self._disk_cache_conn.close()
                 except Exception:
@@ -236,12 +241,15 @@ class BiliBiliParser:
 
     def _ensure_disk_cache(self):
         """
-        确保 SQLite 连接已打开并且表已初始化（懒加载）。
+        确保当已注入 SQLite 连接时表被初始化。
+        注意：该方法不负责创建连接（应用应在启动时创建连接并传入）。
         """
-        if getattr(self, '_disk_cache_conn', None):
+        if not getattr(self, '_disk_cache_conn', None):
+            return
+        if getattr(self, '_disk_cache_inited', False):
             return
         try:
-            conn = sqlite3.connect(self._disk_cache_path, check_same_thread=False)
+            conn = self._disk_cache_conn
             cur = conn.cursor()
             cur.execute(f"""CREATE TABLE IF NOT EXISTS {self._disk_cache_table} (
                 key TEXT PRIMARY KEY,
@@ -249,9 +257,9 @@ class BiliBiliParser:
                 ts REAL
             )""")
             conn.commit()
-            self._disk_cache_conn = conn
+            self._disk_cache_inited = True
         except Exception:
-            logger.exception('打开或初始化磁盘缓存失败')
+            logger.exception('初始化磁盘缓存表失败')
 
     def _get_disk_cache(self, key: str):
         try:

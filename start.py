@@ -12,6 +12,8 @@ import logging
 from app import app
 from config import get_config
 from cache_manager import setup_cache
+import sqlite3
+import os
 
 # 获取配置
 config = get_config()
@@ -56,7 +58,39 @@ def main():
     threading.Timer(1.5, open_browser).start()
 
     try:
-        app.run(host=host, port=port, debug=config.DEBUG, threaded=True, use_reloader=False)
+        # 在启动时创建并注入 SQLite 连接，供解析器使用（与 run.py 一致）
+        db_path = os.path.join(os.path.dirname(__file__), 'ass_player', 'bilibili_cache.db')
+        conn = None
+        try:
+            conn = sqlite3.connect(db_path, check_same_thread=False)
+            cur = conn.cursor()
+            cur.execute("""CREATE TABLE IF NOT EXISTS cache (
+                key TEXT PRIMARY KEY,
+                url TEXT,
+                ts REAL
+            )""")
+            conn.commit()
+            logger.info('已初始化本地 SQLite 缓存（start.py）：%s', db_path)
+            # 注入到全局解析器实例（如果存在）
+            try:
+                from app import _parser as _app_parser
+                if _app_parser is not None:
+                    _app_parser._disk_cache_conn = conn
+                    setattr(_app_parser, '_owns_disk_conn', False)
+                    try:
+                        _app_parser._ensure_disk_cache()
+                    except Exception:
+                        logger.exception('初始化解析器磁盘缓存表时出错')
+            except Exception:
+                logger.exception('注入解析器连接时发生错误')
+            app.run(host=host, port=port, debug=config.DEBUG, threaded=True, use_reloader=False)
+        finally:
+            try:
+                if conn:
+                    conn.close()
+                    logger.info('已关闭本地 SQLite 缓存连接（start.py）')
+            except Exception:
+                logger.exception('关闭 SQLite 连接时发生异常')
     except KeyboardInterrupt:
         logger.info('服务已停止')
     except Exception:
