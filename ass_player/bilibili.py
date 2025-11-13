@@ -205,18 +205,8 @@ class BiliBiliParser:
                         self._url_cache.popitem(last=False)
                     return real_url
 
-            # 3. 最后兜底：正则暴力搜索 MP4 链接
-            mp4_url = self._find_mp4_in_html(html)
-            if mp4_url:
-                real_url = self._try_convert_cdn_url(mp4_url)
-                self._url_cache[cache_key] = real_url
-                try:
-                    self._set_disk_cache(cache_key, real_url)
-                except Exception as e:
-                    logger.warning('写入本地磁盘缓存异常: %s', e)
-                if len(self._url_cache) > self._url_cache_max:
-                    self._url_cache.popitem(last=False)
-                return real_url
+            # 3. 最后兜底：不再进行正则暴力搜索（曾导致错误匹配）
+            # 我们不再在 HTML 中做盲目正则搜索 MP4 链接，以避免误报或安全问题。
 
             logger.warning("所有解析策略均失败，无法为 %s 获取视频链接", url)
             return None

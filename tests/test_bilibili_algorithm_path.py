@@ -16,7 +16,6 @@ class TestBiliBiliParserAlgorithmPath(unittest.TestCase):
         orig_get_720p_mp4 = self.parser._get_720p_mp4
         orig_extract_playinfo = self.parser._extract_playinfo_from_html
         orig_extract_720p = self.parser._extract_720p_from_playinfo
-        orig_find_mp4 = self.parser._find_mp4_in_html
         orig_try_convert = self.parser._try_convert_cdn_url
         orig_is_url_allowed = self.parser._is_url_allowed
 
@@ -28,7 +27,7 @@ class TestBiliBiliParserAlgorithmPath(unittest.TestCase):
         self.parser._get_720p_mp4 = wrap('_get_720p_mp4', orig_get_720p_mp4)
         self.parser._extract_playinfo_from_html = wrap('_extract_playinfo_from_html', orig_extract_playinfo)
         self.parser._extract_720p_from_playinfo = wrap('_extract_720p_from_playinfo', orig_extract_720p)
-        self.parser._find_mp4_in_html = wrap('_find_mp4_in_html', orig_find_mp4)
+    # 不再跟踪或 patch 正则查找方法，因为已从解析器中移除
         self.parser._try_convert_cdn_url = wrap('_try_convert_cdn_url', orig_try_convert)
         self.parser._is_url_allowed = wrap('_is_url_allowed', orig_is_url_allowed)
 

@@ -20,6 +20,14 @@ class TestFlaskApp(unittest.TestCase):
         """测试前置设置"""
         self.app = app.test_client()
         self.app.testing = True
+        # 清理 app 模块中的速率限制状态，避免测试间相互干扰
+        try:
+            import importlib
+            app_mod = importlib.import_module('app')
+            if hasattr(app_mod, '_last_request'):
+                app_mod._last_request.clear()
+        except Exception:
+            pass
     
     def test_index_route(self):
         """测试主页路由"""

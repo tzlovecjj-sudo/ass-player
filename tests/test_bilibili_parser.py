@@ -54,13 +54,11 @@ class TestBilibiliParser(unittest.TestCase):
     
     @patch('ass_player.bilibili.BiliBiliParser._get_720p_mp4')
     @patch('ass_player.bilibili.BiliBiliParser._extract_playinfo_from_html')
-    @patch('ass_player.bilibili.BiliBiliParser._find_mp4_in_html')
-    def test_get_real_url_fallback_strategies(self, mock_find_mp4, mock_extract_playinfo, mock_get_720p):
+    def test_get_real_url_fallback_strategies(self, mock_extract_playinfo, mock_get_720p):
         """测试fallback策略"""
         # 所有策略都失败
         mock_get_720p.return_value = None
         mock_extract_playinfo.return_value = None
-        mock_find_mp4.return_value = None
         
         result = self.parser.get_real_url(self.valid_bilibili_url)
         
@@ -108,11 +106,7 @@ class TestBilibiliParser(unittest.TestCase):
         self.assertIsInstance(playinfo, dict)
         self.assertIn('data', playinfo)
 
-    def test_find_mp4_in_html(self):
-        """测试在HTML中查找mp4链接"""
-        html = '<video src="https://test.com/abc.mp4"></video>'
-        url = self.parser._find_mp4_in_html(html)
-        self.assertTrue(url and url.endswith('.mp4'))
+    # 已移除：不再在 HTML 中进行盲目正则搜索 MP4 链接（易误判且带来安全隐患）
 
     def test_extract_playinfo_json_error(self):
         """测试playinfo JSON解析异常分支"""
