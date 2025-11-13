@@ -1,4 +1,20 @@
-# Python cache
+# 忽略 SQLite 和 shelve 生成的备份/数据文件
+*.db
+*.db-* 
+*.bak
+*.dat
+*.dir
+
+# Python 缓存和临时文件
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# 本地 IDE 文件
+.vscode/
+*.suo
+*.user
+*.log# Python cache
 __pycache__/
 *.py[cod]
 *$py.class
