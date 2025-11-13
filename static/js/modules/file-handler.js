@@ -105,17 +105,14 @@ export default class FileHandler {
 
         this.player.showStatus('正在解析视频链接...', 'info');
 
-        // 调用 videoParser（实际上是后端的 /api/auto-parse 接口）来解析 URL
-        this.player.videoParser.parseVideo(url, true) // `true` 表示使用代理
+        // 调用 videoParser（后端 /api/auto-parse 接口）来解析 URL
+        this.player.videoParser.parseVideo(url)
             .then(videoUrl => {
+                if (!videoUrl) return; // 如果未返回可用直链，说明已提示用户
                 console.log('✅ 视频链接解析成功:', videoUrl);
                 this.player.showStatus('链接解析成功，正在加载视频...', 'success');
-                
-                // 设置视频源为解析后得到的直接地址
                 this.player.videoPlayer.src = videoUrl;
                 this.player.videoPlayer.load();
-                
-                // 为视频元素设置临时的错误和成功处理器
                 this.player.videoPlayer.onerror = () => {
                     console.error('❌ 加载解析后的视频失败。');
                     this.player.showStatus('视频加载失败，可能是链接已过期或跨域问题。', 'error');
@@ -123,21 +120,19 @@ export default class FileHandler {
                 this.player.videoPlayer.oncanplay = () => {
                     console.log('✅ 视频已准备好，可以播放。');
                     this.player.showStatus('视频加载完成。', 'success');
-                    // 自动播放（兼容浏览器策略，必要时可静音）
-                    // this.player.videoPlayer.muted = true; // 如需静音自动播放可取消注释
                     this.player.videoPlayer.play().catch(() => {});
                 };
-                
-                // 更新 UI 上的信息
                 this.player.updateOnlineVideoInfo(url);
-                
-                // 设置焦点到播放按钮，避免空格键弹出文件选择框
                 if (this.player.playPauseBtn) {
                     this.player.playPauseBtn.focus();
                 }
             })
             .catch(error => {
-                // 处理 URL 解析失败的情况
+                // 解析失败时，video-parser 会自动显示详细提示，这里只做兜底
+                if (error && error.message && error.message.includes('无法直接在线播放')) {
+                    // 已有详细提示，无需重复
+                    return;
+                }
                 console.error('❌ 视频链接解析失败:', error);
                 this.player.showStatus(`链接解析失败: ${error.message}`, 'error');
             });

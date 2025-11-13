@@ -68,29 +68,64 @@ export default class VideoParser {
     async parseWithAutomation(url) {
         try {
             console.log('🔄 正在调用后端自动化解析 API...');
-            
-            // 发送 GET 请求到后端 API，并传入原始 URL 作为参数
             const response = await fetch(`${this.autoParseApi}?url=${encodeURIComponent(url)}`);
-            const data = await response.json(); // 解析 JSON 响应
-            
+            const data = await response.json();
+            // 新增：如果是域名访问，后端返回 download_url 和 message
             if (data.success && data.video_url) {
                 console.log('✅ 后端自动化解析成功，获取到视频 URL:', data.video_url);
                 return data.video_url;
+            } else if (data.success && data.download_url && data.message) {
+                // 域名访问，不能直接播放，显示下载提示
+                this.showDownloadGuide(data.download_url, data.message, url);
+                throw new Error('当前环境下无法直接在线播放，请下载后本地播放。');
             } else {
-                // 如果后端 API 返回失败，显示手动解析指南
                 const errorMessage = data.error || '后端自动化解析失败，未提供具体错误信息。';
                 console.error('❌ 后端自动化解析失败:', errorMessage);
                 this.showManualGuide(url, errorMessage);
                 throw new Error(errorMessage);
             }
-            
         } catch (error) {
-            // 捕获网络请求或 JSON 解析错误
             console.error('❌ 调用后端自动化解析 API 时发生错误:', error);
-            // 显示手动解析指南作为备用方案
             this.showManualGuide(url, error.message || '网络请求失败');
             throw error;
         }
+    }
+
+    /**
+     * 显示“请下载后本地播放”的提示和下载按钮
+     * @param {string} downloadUrl - 视频下载直链
+     * @param {string} message - 提示信息
+     * @param {string} originalUrl - 原始 B站 URL
+     */
+    showDownloadGuide(downloadUrl, message, originalUrl) {
+        const guideHtml = `
+            <div class="parse-guide" style="background: #e3f2fd; border: 1px solid #90caf9; border-radius: 8px; padding: 20px; margin: 15px 0; text-align: left;">
+                <h3 style="margin-top: 0; color: #1565c0;">⚠️ 不能直接在线播放</h3>
+                <p><strong>${message}</strong></p>
+                <a href="${downloadUrl}" target="_blank" style="background: #1976d2; color: white; padding: 10px 15px; border-radius: 5px; text-decoration: none; display: inline-block; margin-bottom: 10px;">⬇️ 点击下载视频</a>
+                <div style="margin-top: 10px; font-size: 0.95em; color: #1565c0;">
+                    下载完成后，请使用“打开本地文件”功能选择视频进行播放。<br>
+                    <button onclick="copyBilibiliUrl('${originalUrl}')" style="background: #43a047; color: white; padding: 6px 12px; border-radius: 5px; border: none; cursor: pointer; margin-top: 8px;">📋 复制原始链接</button>
+                </div>
+            </div>
+        `;
+        const statusEl = document.getElementById('uploadStatus');
+        if (statusEl) {
+            statusEl.innerHTML = guideHtml;
+        }
+        window.copyBilibiliUrl = function(url) {
+            navigator.clipboard.writeText(url).then(() => {
+                alert('✅ Bilibili 链接已复制到剪贴板。');
+            }).catch(() => {
+                const textArea = document.createElement('textarea');
+                textArea.value = url;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                alert('✅ Bilibili 链接已复制到剪贴板。');
+            });
+        };
     }
 
     /**

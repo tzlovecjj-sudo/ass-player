@@ -9,6 +9,7 @@ import time
 import re  # 导入正则表达式库
 import requests  # 用于后端代理视频流
 from flask import Flask, render_template, send_from_directory, request, jsonify, Response
+from flask_cors import CORS  # 新增导入
 
 # 从 ass_player 模块导入 Bilibili 解析器
 from ass_player.bilibili import BiliBiliParser
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 base_dir = os.path.dirname(os.path.abspath(__file__))
 # 初始化 Flask 应用，并指定模板和静态文件目录
 app = Flask(__name__, template_folder=os.path.join(base_dir, 'templates'), static_folder=os.path.join(base_dir, 'static'))
+CORS(app, supports_credentials=True)  # 启用全局 CORS 支持
 
 # 创建一个共享的 BiliBiliParser 实例，以便在多个请求之间复用 HTTP 会话，提高效率
 _parser = BiliBiliParser()
@@ -101,46 +103,36 @@ def auto_parse():
         return jsonify({'success': False, 'error': '请求过于频繁'}), 429
     _last_request[remote] = now  # 更新该 IP 的最后请求时间
 
-    # 尝试解析视频链接
+    # 检测访问来源
+    host_header = request.host or ''
+    is_local = host_header.startswith('127.0.0.1') or host_header.startswith('localhost')
+
     try:
         logger.info('正在为 %s 解析 URL: %s', remote, bilibili_url)
         # 调用解析器获取真实的视频播放地址
         video_url = _parser.get_real_url(bilibili_url)
         if video_url:
-            # 如果解析成功，检测视频质量并返回结果
             quality = _parser._detect_actual_quality(video_url) if hasattr(_parser, '_detect_actual_quality') else '未知'
             logger.info('解析成功: %s (清晰度: %s)', video_url, quality)
-            return jsonify({'success': True, 'video_url': video_url, 'quality': quality, 'message': f'解析成功 ({quality})'})
+            if is_local:
+                # 本地访问，返回直链
+                return jsonify({'success': True, 'video_url': video_url, 'quality': quality, 'message': f'解析成功 ({quality})'})
+            else:
+                # 域名访问，返回下载链接和提示
+                return jsonify({
+                    'success': True,
+                    'video_url': None,
+                    'quality': quality,
+                    'download_url': video_url,
+                    'message': '出于平台防盗链和跨域保护，无法直接在线播放。请点击下方链接下载视频后，使用“打开本地文件”功能播放。'
+                })
         else:
-            # 如果无法获取直链，返回 502 错误
             logger.warning('无法为 %s 获取视频直链', bilibili_url)
             return jsonify({'success': False, 'error': '无法获取视频直链', 'message': '请检查视频链接是否正确，或尝试其他视频'}), 502
     except Exception as e:
-        # 如果解析过程中发生任何异常，记录日志并返回 500 错误
         logger.exception('解析 URL 时发生错误')
         return jsonify({'success': False, 'error': f'解析失败: {str(e)}', 'message': '解析过程中出现错误'}), 500
 
-# 视频直链代理接口，解决CORS跨域问题
-@app.route('/api/proxy')
-def proxy():
-    video_url = request.args.get('url')
-    if not video_url or not video_url.startswith('http'):
-        return jsonify({'error': '无效的URL'}), 400
-    try:
-        # 流式转发视频内容
-        r = requests.get(video_url, stream=True, timeout=10, headers={
-            'User-Agent': request.headers.get('User-Agent', 'Mozilla/5.0')
-        })
-        def generate():
-            for chunk in r.iter_content(chunk_size=8192):
-                if chunk:
-                    yield chunk
-        resp = Response(generate(), content_type=r.headers.get('Content-Type', 'video/mp4'))
-        # 允许跨域
-        resp.headers['Access-Control-Allow-Origin'] = '*'
-        return resp
-    except Exception as e:
-        return jsonify({'error': f'代理失败: {str(e)}'}), 502
 
 # 当该脚本作为主程序直接运行时，执行以下代码
 if __name__ == '__main__':
