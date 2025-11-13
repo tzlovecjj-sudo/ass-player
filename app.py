@@ -117,18 +117,31 @@ def auto_parse():
             quality = _parser._detect_actual_quality(video_url) if hasattr(_parser, '_detect_actual_quality') else '未知'
             logger.info('解析成功: %s (清晰度: %s)', video_url, quality)
             # 无论本地还是域名访问，都返回 download_url（便于前端直接触发下载或展示链接）
+            # 同时如果解析器已缓存该链接的 Content-Length，则一并返回（便于前端显示文件大小）
+            content_length = None
+            try:
+                content_length = _parser._content_length_cache.get(video_url)
+            except Exception:
+                content_length = None
+
             if is_local:
                 # 本地访问，返回直链与下载链接
-                return jsonify({'success': True, 'video_url': video_url, 'download_url': video_url, 'quality': quality, 'message': f'解析成功 ({quality})'})
+                resp = {'success': True, 'video_url': video_url, 'download_url': video_url, 'quality': quality, 'message': f'解析成功 ({quality})'}
+                if content_length:
+                    resp['content_length'] = content_length
+                return jsonify(resp)
             else:
                 # 域名访问，返回下载链接和提示（video_url 仍置为 None）
-                return jsonify({
+                resp = {
                     'success': True,
                     'video_url': None,
                     'quality': quality,
                     'download_url': video_url,
                     'message': '出于平台防盗链和跨域保护，无法直接在线播放。请点击下方链接下载视频后，使用“打开本地文件”功能播放。'
-                })
+                }
+                if content_length:
+                    resp['content_length'] = content_length
+                return jsonify(resp)
         else:
             logger.warning('无法为 %s 获取视频直链', bilibili_url)
             return jsonify({'success': False, 'error': '无法获取视频直链', 'message': '请检查视频链接是否正确，或尝试其他视频'}), 502

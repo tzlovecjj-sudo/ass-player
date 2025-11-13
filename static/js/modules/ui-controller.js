@@ -119,7 +119,7 @@ export default class UIController {
      * @param {string} url - 直接下载地址
      * @param {string} [label] - 可选的友好文件名或说明
      */
-    showDownloadPanel(url, label = '') {
+    showDownloadPanel(url, label = '', size = null) {
         const elementId = 'uploadStatus';
         const statusEl = document.getElementById(elementId);
         if (!statusEl) {
@@ -176,10 +176,14 @@ export default class UIController {
         // 显示文件大小占位
         const sizeEl = document.createElement('div');
         sizeEl.className = 'download-size';
-        sizeEl.textContent = '大小：检测中...';
         sizeEl.style.marginTop = '6px';
         sizeEl.style.fontSize = '12px';
         sizeEl.style.color = '#bfcfe8';
+        if (size && typeof size === 'number') {
+            sizeEl.textContent = `大小：${this.formatFileSize(size)}`;
+        } else {
+            sizeEl.textContent = '大小：检测中...';
+        }
 
         // 把链接和大小放入 info 区域
         info.appendChild(linkAnchor);
@@ -188,29 +192,31 @@ export default class UIController {
         container.appendChild(info);
 
         // 异步尝试获取文件大小（HEAD 或 Range 请求）。注意：可能被 CDN 的 CORS 限制阻止。
-        (async () => {
-            const self = this;
-            try {
-                // 优先尝试 HEAD 请求以获取 Content-Length
-                let resp = await fetch(url, { method: 'HEAD' });
-                let size = resp.headers.get('content-length');
-                if (!size) {
-                    // 如果 HEAD 没有返回长度，尝试 Range 请求以读取响应头中的 Content-Range
-                    resp = await fetch(url, { method: 'GET', headers: { 'Range': 'bytes=0-0' } });
-                    size = resp.headers.get('content-length') || (resp.headers.get('content-range') ? resp.headers.get('content-range').split('/')[1] : null);
-                }
-                if (size) {
-                    const n = parseInt(size, 10);
-                    const pretty = self.formatFileSize ? self.formatFileSize(n) : (n ? `${(n / 1024).toFixed(2)} KB` : '未知');
-                    sizeEl.textContent = `大小：${pretty}`;
-                } else {
+        if (!size) {
+            (async () => {
+                const self = this;
+                try {
+                    // 优先尝试 HEAD 请求以获取 Content-Length
+                    let resp = await fetch(url, { method: 'HEAD' });
+                    let s = resp.headers.get('content-length');
+                    if (!s) {
+                        // 如果 HEAD 没有返回长度，尝试 Range 请求以读取响应头中的 Content-Range
+                        resp = await fetch(url, { method: 'GET', headers: { 'Range': 'bytes=0-0' } });
+                        s = resp.headers.get('content-length') || (resp.headers.get('content-range') ? resp.headers.get('content-range').split('/')[1] : null);
+                    }
+                    if (s) {
+                        const n = parseInt(s, 10);
+                        const pretty = self.formatFileSize ? self.formatFileSize(n) : (n ? `${(n / 1024).toFixed(2)} KB` : '未知');
+                        sizeEl.textContent = `大小：${pretty}`;
+                    } else {
+                        sizeEl.textContent = '大小：未知';
+                    }
+                } catch (e) {
+                    // 可能被 CORS 阻止或网络错误
                     sizeEl.textContent = '大小：未知';
                 }
-            } catch (e) {
-                // 可能被 CORS 阻止或网络错误
-                sizeEl.textContent = '大小：未知';
-            }
-        })();
+            })();
+        }
 
         statusEl.appendChild(container);
 

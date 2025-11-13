@@ -13,6 +13,7 @@ import ipaddress
 import socket
 from typing import Optional
 from urllib.parse import urlparse as urllib_parse  # 使用 urllib.parse 进行 URL 解析，减少对重型库的依赖
+from urllib.parse import parse_qsl, urlencode, urlunparse
 
 # 导入第三方库
 import requests
@@ -75,7 +76,9 @@ class BiliBiliParser:
         
         self.session = session
         self.timeout = timeout
-        
+        # 缓存解析到的资源大小，key 为最终可用的 URL，value 为整数字节数
+        self._content_length_cache = {}
+
         # 设置默认的请求头，模拟移动端浏览器访问
         self.session.headers.update({
             'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
@@ -111,7 +114,7 @@ class BiliBiliParser:
             # 策略 1: 优先尝试通过官方 API 获取 720P 的 MP4 链接
             mp4_url = self._get_720p_mp4(url)
             if mp4_url:
-                return mp4_url
+                return self._try_convert_cdn_url(mp4_url)
 
             # 策略 2: 如果 API 失败，则获取网页 HTML，尝试从中提取播放信息
             resp = self.session.get(url, timeout=self.timeout)
@@ -122,12 +125,12 @@ class BiliBiliParser:
             if playinfo:
                 video_url = self._extract_720p_from_playinfo(playinfo)
                 if video_url:
-                    return video_url
+                    return self._try_convert_cdn_url(video_url)
 
             # 策略 3: 作为最后的手段，使用正则表达式在 HTML 中暴力搜索 MP4 链接
             mp4_url = self._find_mp4_in_html(html)
             if mp4_url:
-                return mp4_url
+                return self._try_convert_cdn_url(mp4_url)
 
             logger.warning("所有解析策略均失败，无法为 %s 获取视频链接", url)
             return None
@@ -337,6 +340,89 @@ class BiliBiliParser:
         if '-16.m4s' in url:
             return '360P'
         return '未知'
+
+    def _try_convert_cdn_url(self, url: str) -> str:
+        """
+        如果解析到的 URL 指向 akamaized/edgesuite 等不可访问的镜像域，尝试替换为可访问的 upos 域名并验证可达性。
+
+        说明：不同的 CDN 镜像可能携带不同的签名参数。这里采用保守策略：
+        - 仅在 hostname 中包含 'akamaized'/'mirror'/'edgesuite' 时尝试替换；
+        - 以一组候选的 upos 域名（目前包含常见的 estgcos 节点）替换 hostname，并尝试 HEAD/GET 返回 200/206 即认为可用；
+        - 若替换得到可用链接则返回之，否则返回原始 URL。
+
+        注意：某些可用镜像需要特定的签名（upsig/hdnts），替换并不能总是成功。这种尝试旨在提高在云端环境中命中可用镜像的概率。
+        """
+        try:
+            parsed = urllib_parse(url)
+            hostname = parsed.hostname or ''
+            low = hostname.lower()
+            if not ('akamaized' in low or 'mirror' in low or 'edgesuite' in low or 'akam' in low):
+                return url
+
+            # 候选替换域名（可按需扩展）
+            candidates = [
+                'upos-sz-estgcos.bilivideo.com',
+                'upos-hz-mirrorakam.akamaized.net'
+            ]
+
+            # 解析并保留原始查询参数，必要时调整部分参数（例如 os -> estgcos）
+            orig_qs = dict(parse_qsl(parsed.query, keep_blank_values=True))
+
+            for cand in candidates:
+                # 构造新的查询参数副本
+                q = orig_qs.copy()
+                # 如果存在 os 参数并且候选域名含 estgcos，则尝试设置 os=estgcos
+                if 'estgcos' in cand:
+                    q['os'] = 'estgcos'
+                # 保持 platform 字段为 html5（若存在）
+                if 'platform' not in q:
+                    q['platform'] = 'html5'
+
+                new_query = urlencode(q, doseq=True)
+                new_parsed = parsed._replace(netloc=cand, query=new_query)
+                new_url = urlunparse(new_parsed)
+
+                # 采用 HEAD 请求验证可达性，部分服务器对 HEAD 不友好，则退回用 GET 的 Range 请求
+                try:
+                    h = self.session.head(new_url, timeout=self.timeout, allow_redirects=True, headers={'Referer': 'https://www.bilibili.com/'})
+                    if h.status_code in (200, 206):
+                        # 尝试读取 Content-Length
+                        size = h.headers.get('content-length')
+                        if not size and h.headers.get('content-range'):
+                            # Content-Range: bytes 0-0/12345
+                            cr = h.headers.get('content-range')
+                            try:
+                                size = cr.split('/')[-1]
+                            except Exception:
+                                size = None
+                        if size:
+                            try:
+                                self._content_length_cache[new_url] = int(size)
+                            except Exception:
+                                pass
+                        logger.info('替换 CDN 主机成功：%s -> %s (status=%s)', hostname, cand, h.status_code)
+                        return new_url
+                except Exception:
+                    # 再尝试 GET Range
+                    try:
+                        r = self.session.get(new_url, timeout=self.timeout, headers={'Referer': 'https://www.bilibili.com/', 'Range': 'bytes=0-0'})
+                        if r.status_code in (200, 206):
+                            size = r.headers.get('content-length') or (r.headers.get('content-range').split('/')[-1] if r.headers.get('content-range') else None)
+                            if size:
+                                try:
+                                    self._content_length_cache[new_url] = int(size)
+                                except Exception:
+                                    pass
+                            logger.info('通过 GET Range 验证替换 CDN 主机可用：%s -> %s (status=%s)', hostname, cand, r.status_code)
+                            return new_url
+                    except Exception:
+                        logger.debug('尝试验证候选 CDN %s 失败', cand)
+
+            logger.debug('未找到可用的替换 CDN，返回原始 URL')
+            return url
+        except Exception:
+            logger.exception('在尝试转换 CDN 链接时发生异常')
+            return url
 
     def _get_quality_name(self, quality_id: int) -> str:
         """

@@ -74,7 +74,8 @@ export default class VideoParser {
                 console.log('✅ 后端自动化解析成功，获取到视频 URL:', data.video_url);
                 return data.video_url;
             } else if (data.success && data.download_url && data.message) {
-                this.showDownloadGuide(data.download_url, data.message, url);
+                // forward optional content_length from server to the download guide
+                this.showDownloadGuide(data.download_url, data.message, url, data.content_length);
                 throw new Error('当前环境下无法直接在线播放，请下载后本地播放。');
             } else {
                 const errorMessage = data.error || '后端自动化解析失败，未提供具体错误信息。';
@@ -93,10 +94,10 @@ export default class VideoParser {
      * @param {string} message - 提示信息
      * @param {string} originalUrl - 原始 B站 URL
      */
-    showDownloadGuide(downloadUrl, message, originalUrl) {
+    showDownloadGuide(downloadUrl, message, originalUrl, size = null) {
         // 如果全局播放器存在且提供 uiController，则使用其持久化下载面板
         if (window.player && window.player.uiController && typeof window.player.uiController.showDownloadPanel === 'function') {
-            window.player.uiController.showDownloadPanel(downloadUrl, message || '视频下载链接');
+            window.player.uiController.showDownloadPanel(downloadUrl, message || '视频下载链接', size);
             return;
         }
         // 否则回退到内联的提示 HTML（兼容没有播放器实例的场景）

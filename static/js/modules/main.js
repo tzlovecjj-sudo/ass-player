@@ -50,7 +50,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         // 如果解析成功但没有可播放直链，尝试使用 download_url 或 video_url 作为备用下载链接
                         const dlUrl = data.download_url || data.video_url;
                         if (dlUrl) {
-                            window.player.uiController.showDownloadPanel(dlUrl, '视频下载链接');
+                            window.player.uiController.showDownloadPanel(dlUrl, '视频下载链接', data.content_length);
                         } else {
                             window.player.showStatus(data.error || '未获取到视频直链。', 'error');
                         }
@@ -95,7 +95,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         document.body.appendChild(a);
                         a.click();
                         document.body.removeChild(a);
-                        window.player.uiController.showDownloadPanel(dlUrl, '视频下载链接');
+                        window.player.uiController.showDownloadPanel(dlUrl, '视频下载链接', data.content_length);
                     } else {
                         window.player.showStatus(data.error || '未获取到下载链接。', 'error');
                     }
