@@ -27,8 +27,8 @@ _parser = BiliBiliParser()
 
 # 使用字典在内存中实现简单的速率限制
 # 键为客户端的 IP 地址，值为最后一次请求的时间戳
-_last_request = {}
-_RATE_LIMIT_SECONDS = 1  # 设置同一个客户端两次请求之间的最小时间间隔（秒）。
+_last_request = {}  # key: (IP, url)
+_RATE_LIMIT_SECONDS = 1  # 设置同一个客户端同一URL两次请求之间的最小时间间隔（秒）。
 
 # 定义根路由，用于渲染主页面
 @app.route('/')
@@ -95,15 +95,15 @@ def auto_parse():
     # 对每个客户端 IP 地址进行速率限制
     remote = request.remote_addr or 'unknown'  # 获取客户端 IP
     now = time.time()  # 获取当前时间戳
-    last = _last_request.get(remote, 0)  # 获取该 IP 的上次请求时间
+    url_key = f'{remote}:{bilibili_url}'
+    last = _last_request.get(url_key, 0)  # 获取该 IP+URL 的上次请求时间
     if now - last < _RATE_LIMIT_SECONDS:
-        # 如果请求间隔过短，返回 429 错误并包含 Retry-After 头，提示客户端稍后重试
         retry_after = int(_RATE_LIMIT_SECONDS - (now - last)) + 1
         resp = jsonify({'success': False, 'error': '请求过于频繁', 'retry_after': retry_after})
         resp.status_code = 429
         resp.headers['Retry-After'] = str(retry_after)
         return resp
-    _last_request[remote] = now  # 更新该 IP 的最后请求时间
+    _last_request[url_key] = now  # 更新该 IP+URL 的最后请求时间
 
     # 检测访问来源
     host_header = request.host or ''

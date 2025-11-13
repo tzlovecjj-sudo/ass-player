@@ -14,6 +14,8 @@ import socket
 from typing import Optional
 from urllib.parse import urlparse as urllib_parse  # 使用 urllib.parse 进行 URL 解析，减少对重型库的依赖
 from urllib.parse import parse_qsl, urlencode, urlunparse
+import time
+import sqlite3
 
 # 导入第三方库
 import requests
@@ -57,12 +59,13 @@ class BiliBiliParser:
         video_url = parser.get_real_url("https://www.bilibili.com/video/BV1...")
     """
 
-    def __init__(self, session: Optional[requests.Session] = None, timeout: int = 10):
+    def __init__(self, session: Optional[requests.Session] = None, timeout: int = 10, cache_path: Optional[str] = None):
         """
         初始化 BiliBiliParser。
 
         :param session: 可选的 requests.Session 对象。如果未提供，将创建一个新的会话。
         :param timeout: 网络请求的默认超时时间（秒）。
+        :param cache_path: 本地磁盘缓存文件路径（如 None 则默认 'bilibili_cache.db'）。
         """
         if session is None:
             # 如果没有提供 session，则创建一个新的
@@ -78,6 +81,24 @@ class BiliBiliParser:
         self.timeout = timeout
         # 缓存解析到的资源大小，key 为最终可用的 URL，value 为整数字节数
         self._content_length_cache = {}
+
+        # 新增：缓存“BV号/URL -> 直链”，避免重复解析（简单 LRU，最大 100 条）
+        from collections import OrderedDict
+        self._url_cache = OrderedDict()
+        self._url_cache_max = 100
+
+        # 本地磁盘缓存（SQLite，懒加载），适合单实例短期持久化
+        import os
+        if cache_path is None:
+            cache_path = os.path.join(os.path.dirname(__file__), 'bilibili_cache.db')
+        # sqlite 文件路径
+        self._disk_cache_path = cache_path
+        # SQLite 连接（懒打开）
+        self._disk_cache_conn = None
+        # 磁盘缓存 TTL（秒），默认 30 分钟
+        self._disk_cache_ttl = 1800
+        # 缓存表名
+        self._disk_cache_table = 'cache'
 
         # 设置默认的请求头，模拟移动端浏览器访问
         self.session.headers.update({
@@ -95,48 +116,179 @@ class BiliBiliParser:
         :param url: Bilibili 视频页面的 URL 或 BV 号。
         :return: 成功时返回视频的真实 URL，否则返回 None。
         """
+        url_for_log = url
         try:
-            logger.info("开始解析 Bilibili URL 或 BV 号: %s", url)
+            logger.info("开始解析 Bilibili URL 或 BV 号: %s", url_for_log)
 
             # 如果输入的是 BV 号，先转换为完整的 URL
-            bvid_match = re.fullmatch(r'BV[a-zA-Z0-9]{10}', url)
+            bvid_match = re.fullmatch(r'BV[a-zA-Z0-9]{10}', url_for_log)
             if bvid_match:
                 bvid = bvid_match.group(0)
                 url = f"https://www.bilibili.com/video/{bvid}"
-                logger.info("检测到 BV 号，已转换为 URL: %s", url)
+                url_for_log = url
+                logger.info("检测到 BV 号，已转换为 URL: %s", url_for_log)
             
             # 对 URL 进行基本验证
             if not url or 'bilibili.com' not in url:
-                logger.warning("输入内容不是有效的 Bilibili URL 或 BV 号: %s", url)
+                logger.warning("输入内容不是有效的 Bilibili URL 或 BV 号: %s", url_for_log)
                 return None
 
-            # --- 解析策略 ---
-            # 策略 1: 优先尝试通过官方 API 获取 720P 的 MP4 链接
+            # 新增：缓存查找，key 用 BV号或URL
+            cache_key = None
+            bvid_match2 = re.search(r'BV[a-zA-Z0-9]{10}', url)
+            if bvid_match2:
+                cache_key = bvid_match2.group(0)
+            else:
+                cache_key = url
+            # 先查内存缓存
+            if cache_key in self._url_cache:
+                logger.info("命中解析缓存: %s -> %s", cache_key, self._url_cache[cache_key])
+                # LRU: 移到末尾
+                self._url_cache.move_to_end(cache_key)
+                return self._url_cache[cache_key]
+
+            # 再查本地磁盘缓存（带过期时间）
+            disk_hit = False
+            try:
+                v = self._get_disk_cache(cache_key)
+                if v and isinstance(v, dict) and 'url' in v and 'ts' in v:
+                    if time.time() - v['ts'] < self._disk_cache_ttl:
+                        logger.info('命中本地磁盘缓存: %s -> %s', cache_key, v['url'])
+                        # 写入内存缓存
+                        self._url_cache[cache_key] = v['url']
+                        if len(self._url_cache) > self._url_cache_max:
+                            self._url_cache.popitem(last=False)
+                        disk_hit = True
+                        return v['url']
+                    else:
+                        # 过期，删除
+                        self._del_disk_cache(cache_key)
+            except Exception as e:
+                logger.warning('读取本地磁盘缓存异常: %s', e)
+            # --- 解析策略优化 ---
+            # 1. 优先官方 API（最快、最稳定）
             mp4_url = self._get_720p_mp4(url)
             if mp4_url:
-                return self._try_convert_cdn_url(mp4_url)
+                real_url = self._try_convert_cdn_url(mp4_url)
+                # 写入内存缓存
+                self._url_cache[cache_key] = real_url
+                try:
+                    self._set_disk_cache(cache_key, real_url)
+                except Exception as e:
+                    logger.warning('写入本地磁盘缓存异常: %s', e)
+                if len(self._url_cache) > self._url_cache_max:
+                    self._url_cache.popitem(last=False)
+                return real_url
+            html = ''
+            try:
+                resp = self.session.get(url, timeout=self.timeout)
+                html = resp.text
+            except Exception as e:
+                logger.warning('请求页面 HTML 失败: %s', e)
+                html = ''
 
-            # 策略 2: 如果 API 失败，则获取网页 HTML，尝试从中提取播放信息
-            resp = self.session.get(url, timeout=self.timeout)
-            html = resp.text
-
-            # 策略 2a: 从 HTML 中提取 `window.__playinfo__` JSON 对象
             playinfo = self._extract_playinfo_from_html(html)
             if playinfo:
                 video_url = self._extract_720p_from_playinfo(playinfo)
                 if video_url:
-                    return self._try_convert_cdn_url(video_url)
+                    real_url = self._try_convert_cdn_url(video_url)
+                    self._url_cache[cache_key] = real_url
+                    try:
+                        self._set_disk_cache(cache_key, real_url)
+                    except Exception as e:
+                        logger.warning('写入本地磁盘缓存异常: %s', e)
+                    if len(self._url_cache) > self._url_cache_max:
+                        self._url_cache.popitem(last=False)
+                    return real_url
 
-            # 策略 3: 作为最后的手段，使用正则表达式在 HTML 中暴力搜索 MP4 链接
+            # 3. 最后兜底：正则暴力搜索 MP4 链接
             mp4_url = self._find_mp4_in_html(html)
             if mp4_url:
-                return self._try_convert_cdn_url(mp4_url)
+                real_url = self._try_convert_cdn_url(mp4_url)
+                self._url_cache[cache_key] = real_url
+                try:
+                    self._set_disk_cache(cache_key, real_url)
+                except Exception as e:
+                    logger.warning('写入本地磁盘缓存异常: %s', e)
+                if len(self._url_cache) > self._url_cache_max:
+                    self._url_cache.popitem(last=False)
+                return real_url
 
             logger.warning("所有解析策略均失败，无法为 %s 获取视频链接", url)
             return None
-        except Exception:
-            logger.exception("解析 %s 时发生未知异常", url)
+        except Exception as ex:
+            # 捕获 get_real_url 中的任何未处理异常，记录并返回 None
+            try:
+                logger.exception("解析 %s 时发生未知异常: %s", url_for_log, ex)
+            except Exception:
+                logger.exception("解析时发生未知异常（无法记录 URL）")
             return None
+
+    def __del__(self):
+        try:
+            if getattr(self, '_disk_cache_conn', None):
+                try:
+                    self._disk_cache_conn.close()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    def _ensure_disk_cache(self):
+        """
+        确保 SQLite 连接已打开并且表已初始化（懒加载）。
+        """
+        if getattr(self, '_disk_cache_conn', None):
+            return
+        try:
+            conn = sqlite3.connect(self._disk_cache_path, check_same_thread=False)
+            cur = conn.cursor()
+            cur.execute(f"""CREATE TABLE IF NOT EXISTS {self._disk_cache_table} (
+                key TEXT PRIMARY KEY,
+                url TEXT,
+                ts REAL
+            )""")
+            conn.commit()
+            self._disk_cache_conn = conn
+        except Exception:
+            logger.exception('打开或初始化磁盘缓存失败')
+
+    def _get_disk_cache(self, key: str):
+        try:
+            self._ensure_disk_cache()
+            if not getattr(self, '_disk_cache_conn', None):
+                return None
+            cur = self._disk_cache_conn.cursor()
+            cur.execute(f"SELECT url, ts FROM {self._disk_cache_table} WHERE key = ?", (key,))
+            row = cur.fetchone()
+            if not row:
+                return None
+            return {'url': row[0], 'ts': row[1]}
+        except Exception:
+            logger.exception('读取磁盘缓存项失败: %s', key)
+            return None
+
+    def _set_disk_cache(self, key: str, url: str):
+        try:
+            self._ensure_disk_cache()
+            if not getattr(self, '_disk_cache_conn', None):
+                return
+            cur = self._disk_cache_conn.cursor()
+            cur.execute(f"INSERT OR REPLACE INTO {self._disk_cache_table} (key, url, ts) VALUES (?, ?, ?)", (key, url, time.time()))
+            self._disk_cache_conn.commit()
+        except Exception:
+            logger.exception('写入磁盘缓存项失败: %s', key)
+
+    def _del_disk_cache(self, key: str):
+        try:
+            self._ensure_disk_cache()
+            if not getattr(self, '_disk_cache_conn', None):
+                return
+            cur = self._disk_cache_conn.cursor()
+            cur.execute(f"DELETE FROM {self._disk_cache_table} WHERE key = ?", (key,))
+            self._disk_cache_conn.commit()
+        except Exception:
+            logger.exception('删除磁盘缓存项失败: %s', key)
 
     def _get_720p_mp4(self, url: str) -> Optional[str]:
         """
@@ -380,23 +532,7 @@ class BiliBiliParser:
                 new_parsed = parsed._replace(netloc=quick_netloc, query=urlencode(orig_qs, doseq=True))
                 quick_url = urlunparse(new_parsed)
                 logger.info('按用户提示进行快速替换：%s -> %s', hostname, quick_netloc)
-                # 尝试用很短的超时时间做一次 HEAD，以便尽可能记录 content-length，但不影响返回
-                try:
-                    hq = self.session.head(quick_url, timeout=min(3, self.timeout), allow_redirects=True, headers={'Referer': 'https://www.bilibili.com/'})
-                    if hq.status_code in (200, 206):
-                        size = hq.headers.get('content-length')
-                        if not size and hq.headers.get('content-range'):
-                            try:
-                                size = hq.headers.get('content-range').split('/')[-1]
-                            except Exception:
-                                size = None
-                        if size:
-                            try:
-                                self._content_length_cache[quick_url] = int(size)
-                            except Exception:
-                                pass
-                except Exception:
-                    logger.debug('快速替换后的 HEAD 请求失败（可忽略）')
+                # 性能优化：不再做 HEAD 请求
                 return quick_url
 
             # 使用较短的超时时间以避免在云端阻塞过久

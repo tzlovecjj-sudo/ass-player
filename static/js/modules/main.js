@@ -23,6 +23,9 @@ document.addEventListener('DOMContentLoaded', function() {
             urlInput.value = 'https://www.bilibili.com/video/BV1NmyXBTEGD';
         }
 
+        // 防止重复请求和 demo/手动互斥
+        let isParsing = false;
+        let lastParsedUrl = '';
         if (loadBtn && urlInput) {
             loadBtn.textContent = '加载';
             loadBtn.onclick = async () => {
@@ -31,24 +34,31 @@ document.addEventListener('DOMContentLoaded', function() {
                     window.player.showStatus('请输入有效的视频 URL。', 'error');
                     return;
                 }
-                // 防抖：禁用按钮 1500ms，避免触发后端速率限制
+                if (isParsing) {
+                    window.player.showStatus('正在解析中，请勿重复点击。', 'info');
+                    return;
+                }
+                if (lastParsedUrl === url) {
+                    window.player.showStatus('该视频已解析过，请勿重复请求。', 'info');
+                    return;
+                }
+                isParsing = true;
                 loadBtn.disabled = true;
-                setTimeout(() => { loadBtn.disabled = false; }, 1500);
                 window.player.showStatus('正在解析视频链接...', 'info');
                 try {
                     const resp = await fetch(`/api/auto-parse?url=${encodeURIComponent(url)}`);
                     const status = resp.status;
                     const data = await resp.json().catch(() => ({}));
                     if (status === 429) {
-                        window.player.showStatus(data.error || '请求过于频繁，请稍后重试。', 'error');
+                        let retry = data.retry_after || 2;
+                        window.player.showStatus((data.error || '请求过于频繁，请稍后重试。') + ` (${retry}s后可重试)`, 'error');
+                        setTimeout(() => { isParsing = false; loadBtn.disabled = false; }, retry * 1000);
                         return;
                     }
                     if (data.success && data.video_url) {
-                        // 直接播放：使用专门的方法通过直链加载并处理播放失败
-                        // 同时把服务器返回的 content_length 传入，供下载面板显示
+                        lastParsedUrl = url;
                         window.player.fileHandler.loadOnlineVideoWithUrl(data.video_url, url, data.content_length);
                     } else if (data.success) {
-                        // 如果解析成功但没有可播放直链，尝试使用 download_url 或 video_url 作为备用下载链接
                         const dlUrl = data.download_url || data.video_url;
                         if (dlUrl) {
                             window.player.uiController.showDownloadPanel(dlUrl, '视频下载链接', data.content_length);
@@ -61,6 +71,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 } catch (e) {
                     console.error('解析视频链接异常:', e);
                     window.player.showStatus('解析视频链接失败，请检查网络或稍后重试。', 'error');
+                } finally {
+                    isParsing = false;
+                    loadBtn.disabled = false;
                 }
             };
         }
@@ -74,6 +87,7 @@ document.addEventListener('DOMContentLoaded', function() {
             let demoVideoLoaded = false;
             let demoSubtitleLoaded = false;
             let autoPlayed = false;
+            let demoParsing = false;
             function tryAutoPlay() {
                 if (demoVideoLoaded && demoSubtitleLoaded && !autoPlayed) {
                     autoPlayed = true;
@@ -89,6 +103,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 }
             }
+            // demo 加载和手动点击互斥
             if (window.player.onlineVideoUrl) {
                 window.player.onlineVideoUrl.value = demoBiliUrl;
                 const v = window.player.videoPlayer;
@@ -97,7 +112,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     demoVideoLoaded = true;
                     tryAutoPlay();
                 });
-                window.player.fileHandler.loadOnlineVideo();
+                if (!demoParsing) {
+                    demoParsing = true;
+                    window.player.fileHandler.loadOnlineVideo();
+                }
             }
             fetch(demoAssPath)
                 .then(resp => {
