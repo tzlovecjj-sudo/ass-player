@@ -24,7 +24,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 onlineBtn.onclick = () => window.player.fileHandler.loadOnlineVideo();
             } else {
                 onlineBtn.textContent = '下载';
-                // 自动填充演示视频地址，方便体验
                 if (!urlInput.value) {
                     urlInput.value = 'https://www.bilibili.com/video/BV1NmyXBTEGD';
                 }
@@ -39,8 +38,19 @@ document.addEventListener('DOMContentLoaded', function() {
                         const resp = await fetch(`/api/auto-parse?url=${encodeURIComponent(url)}`);
                         const data = await resp.json();
                         if (data.success && data.download_url) {
-                            window.open(data.download_url, '_blank');
-                            window.player.showStatus('请下载后用“打开本地文件”播放。', 'success');
+                            // 强制下载
+                            const a = document.createElement('a');
+                            a.href = data.download_url;
+                            a.download = '';
+                            a.target = '_blank';
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            // 显示带链接的手动下载提示
+                            window.player.showStatus(
+                                `请下载后用“打开本地文件”播放。<br>` +
+                                `<a href="${data.download_url}" target="_blank" style="color:#1976d2;font-weight:bold;">如果没有自动开始下载，请手动点击此处下载</a>`
+                                , 'success');
                         } else {
                             window.player.showStatus(data.error || '未获取到下载链接。', 'error');
                         }
