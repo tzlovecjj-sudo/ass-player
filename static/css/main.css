@@ -145,6 +145,26 @@ body {
     margin-left: auto;
 }
 
+/* 音量滑块样式 */
+#volumeSlider {
+    accent-color: #ff6b00;
+    height: 4px;
+    margin: 0 4px;
+    vertical-align: middle;
+}
+
+#muteBtn {
+    font-size: 18px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 0 4px;
+}
+#muteBtn:focus {
+    outline: 2px solid #ff6b00;
+}
+}
+
 .progress-container {
     flex: 1;
     margin: 0 15px;

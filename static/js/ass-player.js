@@ -155,6 +155,30 @@ export default class EmbeddedASSPlayer {
         this.playPauseBtn.addEventListener('click', () => this.videoController.togglePlayPause());
         this.restartBtn.addEventListener('click', () => this.videoController.restartVideo());
         this.fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
+
+        // --- 音量与静音控制 ---
+        this.muteBtn = document.getElementById('muteBtn');
+        this.volumeSlider = document.getElementById('volumeSlider');
+        if (this.muteBtn && this.videoPlayer) {
+            this.muteBtn.addEventListener('click', () => {
+                this.videoPlayer.muted = !this.videoPlayer.muted;
+                this.updateMuteButton();
+            });
+        }
+        if (this.volumeSlider && this.videoPlayer) {
+            this.volumeSlider.addEventListener('input', (e) => {
+                this.videoPlayer.volume = parseFloat(e.target.value);
+                if (this.videoPlayer.volume === 0) {
+                    this.videoPlayer.muted = true;
+                } else {
+                    this.videoPlayer.muted = false;
+                }
+                this.updateMuteButton();
+            });
+        }
+        if (this.videoPlayer) {
+            this.videoPlayer.addEventListener('volumechange', () => this.updateMuteButton());
+        }
         
         // --- 进度条拖动 ---
         this.progressBar.addEventListener('mousedown', (e) => this.progressController.startSeeking(e));
@@ -199,6 +223,21 @@ export default class EmbeddedASSPlayer {
         document.addEventListener('keydown', (e) => this.handleKeyboard(e));
         
         console.log('事件监听器设置完成。');
+    }
+
+    /**
+     * 更新静音按钮图标和滑块状态
+     */
+    updateMuteButton() {
+        if (!this.muteBtn || !this.videoPlayer) return;
+        if (this.videoPlayer.muted || this.videoPlayer.volume === 0) {
+            this.muteBtn.textContent = '🔇';
+        } else {
+            this.muteBtn.textContent = '🔊';
+        }
+        if (this.volumeSlider) {
+            this.volumeSlider.value = this.videoPlayer.muted ? 0 : this.videoPlayer.volume;
+        }
     }
     
     /**

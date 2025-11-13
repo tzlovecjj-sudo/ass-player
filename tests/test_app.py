@@ -41,6 +41,26 @@ class TestFlaskApp(unittest.TestCase):
         
         # 可能返回404如果文件不存在，但路由应该工作
         self.assertIn(response.status_code, [200, 404])
+
+    def test_ass_files_route(self):
+        """测试ass_files字幕文件路由"""
+        # 只测试路由可访问性，不要求文件一定存在
+        response = self.app.get('/ass_files/2%20Minecraft%20Pros%20VS%201000%20Players.ass')
+        self.assertIn(response.status_code, [200, 404])
+
+    def test_404_route(self):
+        """测试404页面"""
+        response = self.app.get('/not-exist-url')
+        self.assertEqual(response.status_code, 404)
+
+    def test_auto_parse_success(self):
+        """测试自动解析API成功分支（mock解析器）"""
+        import unittest.mock as mock
+        with mock.patch('ass_player.bilibili.BiliBiliParser.get_real_url', return_value='https://test.com/video.mp4'):
+            response = self.app.get('/api/auto-parse?url=https://www.bilibili.com/video/BV1xx411c7mD')
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(b'success', response.data)
+            self.assertIn(b'video_url', response.data)
     
     def test_auto_parse_missing_url(self):
         """测试缺少URL参数的自动解析"""

@@ -93,13 +93,33 @@ class TestBilibiliParser(unittest.TestCase):
             (64, "720P"),
             (32, "480P"),
             (16, "360P"),
-            (999, "质量999"),  # 未知质量
+            (999, "未知清晰度(999)"),  # 未知质量
         ]
         
         for quality_id, expected_name in test_cases:
             with self.subTest(quality_id=quality_id):
                 quality_name = self.parser._get_quality_name(quality_id)
                 self.assertEqual(quality_name, expected_name)
+
+    def test_extract_playinfo_from_html(self):
+        """测试从HTML中提取playinfo JSON"""
+        html = '<script>window.__playinfo__ = {"data": {"durl": [{"url": "https://test.com/1.mp4"}]}} </script>'
+        playinfo = self.parser._extract_playinfo_from_html(html)
+        self.assertIsInstance(playinfo, dict)
+        self.assertIn('data', playinfo)
+
+    def test_find_mp4_in_html(self):
+        """测试在HTML中查找mp4链接"""
+        html = '<video src="https://test.com/abc.mp4"></video>'
+        url = self.parser._find_mp4_in_html(html)
+        self.assertTrue(url and url.endswith('.mp4'))
+
+    def test_extract_playinfo_json_error(self):
+        """测试playinfo JSON解析异常分支"""
+        # 非法JSON
+        html = '<script>window.__playinfo__ = {bad json </script>'
+        playinfo = self.parser._extract_playinfo_from_html(html)
+        self.assertIsNone(playinfo)
 
 
 if __name__ == '__main__':

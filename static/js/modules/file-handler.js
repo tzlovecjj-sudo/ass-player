@@ -123,6 +123,9 @@ export default class FileHandler {
                 this.player.videoPlayer.oncanplay = () => {
                     console.log('✅ 视频已准备好，可以播放。');
                     this.player.showStatus('视频加载完成。', 'success');
+                    // 自动播放（兼容浏览器策略，必要时可静音）
+                    // this.player.videoPlayer.muted = true; // 如需静音自动播放可取消注释
+                    this.player.videoPlayer.play().catch(() => {});
                 };
                 
                 // 更新 UI 上的信息

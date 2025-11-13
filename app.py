@@ -131,29 +131,24 @@ if __name__ == '__main__':
     print('-' * 50)
 
     try:
-        # 定义一个函数，用于在延迟后自动在浏览器中打开应用主页
-        def _open_browser():
-            time.sleep(1.5)  # 等待 1.5 秒，确保服务器已启动
-            try:
-                import webbrowser
-                webbrowser.open_new('http://127.0.0.1:5000/')
-            except Exception:
-                logger.exception('自动打开浏览器失败')
+        # 兼容 Zeabur 云平台和本地开发环境
+        port = int(os.environ.get('PORT', os.environ.get('ASS_PLAYER_PORT', 5000)))
+        host = os.environ.get('ASS_PLAYER_HOST', '0.0.0.0')
 
-        # 使用定时器在新线程中执行浏览器打开操作，避免阻塞主线程
-        threading.Timer(1.5, _open_browser).start()
+        # 仅本地开发时自动打开浏览器
+        if host in ('127.0.0.1', 'localhost'):
+            def _open_browser():
+                time.sleep(1.5)
+                try:
+                    import webbrowser
+                    webbrowser.open_new(f'http://{host}:{port}/')
+                except Exception:
+                    logger.exception('自动打开浏览器失败')
+            threading.Timer(1.5, _open_browser).start()
 
-        # 启动 Flask 开发服务器
-        # host='127.0.0.1' 使其只能通过本地访问
-        # port=5000 指定监听端口
-        # debug=False 关闭调试模式，适用于简单部署
-        # threaded=True 允许多线程处理请求
-        # use_reloader=False 禁用代码修改后自动重启服务器的功能
-        app.run(host='127.0.0.1', port=5000, debug=False, threaded=True, use_reloader=False)
+        app.run(host=host, port=port, debug=False, threaded=True, use_reloader=False)
     except KeyboardInterrupt:
-        # 捕获 Ctrl+C 中断信号，优雅地停止服务
         print('\n服务已停止')
     except Exception as e:
-        # 捕获其他启动过程中的异常
         print(f'启动失败: {e}')
         input('按回车键退出...')

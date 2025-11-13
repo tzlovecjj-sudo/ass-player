@@ -11,22 +11,45 @@ import EmbeddedASSPlayer from '../ass-player.js'; // 导入播放器主类
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM 加载完成，开始初始化 ASS 播放器 (模块化版本)...');
     try {
-        // 实例化播放器主类，并将其挂载到 window 对象上，
-        // 以便在浏览器的开发者工具中进行调试。
         window.player = new EmbeddedASSPlayer();
         console.log('播放器实例创建成功。');
 
         // --- 在线 Demo：默认加载示例字幕与对应 B 站视频 ---
-        // 示例视频（B 站页面）
         const demoBiliUrl = 'https://www.bilibili.com/video/BV1NmyXBTEGD';
-        // 示例字幕（本项目 ass_files 目录）
         const demoAssName = '2 Minecraft Pros VS 1000 Players.ass';
         const demoAssPath = '/ass_files/' + encodeURIComponent(demoAssName);
+
+        // 自动播放协调器（静音以兼容浏览器策略）
+        let demoVideoLoaded = false;
+        let demoSubtitleLoaded = false;
+        let autoPlayed = false;
+        function tryAutoPlay() {
+            if (demoVideoLoaded && demoSubtitleLoaded && !autoPlayed) {
+                autoPlayed = true;
+                const v = window.player.videoPlayer;
+                if (v) v.muted = true; // 静音，提升自动播放成功率
+                if (v && v.readyState >= 2) {
+                    v.play().catch(() => {});
+                } else if (v) {
+                    v.addEventListener('canplay', function handler() {
+                        v.removeEventListener('canplay', handler);
+                        v.play().catch(() => {});
+                    });
+                }
+            }
+        }
 
         // 1) 预填并解析在线视频（使用后端解析接口）
         if (window.player.onlineVideoUrl) {
             window.player.onlineVideoUrl.value = demoBiliUrl;
             // 触发解析并加载视频
+            // 在 canplay 事件中标记 demoVideoLoaded
+            const v = window.player.videoPlayer;
+            v.addEventListener('canplay', function handler() {
+                v.removeEventListener('canplay', handler);
+                demoVideoLoaded = true;
+                tryAutoPlay();
+            });
             window.player.fileHandler.loadOnlineVideo();
         }
 
@@ -38,16 +61,16 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(text => {
                 window.player.subtitleRenderer.parseASSFile(text);
-                // 伪造一个文件对象以复用 UI 更新逻辑
                 window.player.updateSubtitleInfo({ name: demoAssName, size: text.length });
                 window.player.showStatus('已加载示例字幕。', 'success');
+                demoSubtitleLoaded = true;
+                tryAutoPlay();
             })
             .catch(err => {
                 console.warn('示例字幕加载失败：', err);
                 window.player.showStatus('示例字幕加载失败', 'error');
             });
     } catch (error) {
-        // 捕获并记录初始化过程中可能发生的任何错误。
         console.error('播放器初始化过程中发生严重错误:', error);
     }
 });
