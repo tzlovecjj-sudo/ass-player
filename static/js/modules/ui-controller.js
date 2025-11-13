@@ -83,16 +83,158 @@ export default class UIController {
             console.log(`状态 [${type}]: ${message}`);
             return;
         }
-        // 支持 HTML 内容
-        statusEl.innerHTML = `<span>${message}</span><button id="closeStatusBtn" style="margin-left:10px;">关闭</button>`;
+        // 保证容器为相对定位，以便放置绝对定位的关闭按钮
+        statusEl.style.position = 'relative';
         statusEl.className = `status ${type}`;
-        // 绑定关闭按钮
-        const closeBtn = document.getElementById('closeStatusBtn');
-        if (closeBtn) {
+        // 插入消息内容
+        statusEl.innerHTML = `<div class="status-content">${message}</div>`;
+
+        // 创建并插入右上角小叉关闭按钮
+        let closeBtn = statusEl.querySelector('.status-close');
+        if (!closeBtn) {
+            closeBtn = document.createElement('button');
+            closeBtn.className = 'status-close';
+            closeBtn.setAttribute('aria-label', '关闭提示');
+            closeBtn.style.position = 'absolute';
+            closeBtn.style.top = '6px';
+            closeBtn.style.right = '6px';
+            closeBtn.style.border = 'none';
+            closeBtn.style.background = 'transparent';
+            closeBtn.style.color = '#999';
+            closeBtn.style.cursor = 'pointer';
+            closeBtn.style.fontSize = '14px';
+            closeBtn.style.padding = '2px 6px';
+            closeBtn.textContent = '✕';
             closeBtn.onclick = () => {
                 statusEl.innerHTML = '';
                 statusEl.className = 'status';
             };
+            statusEl.appendChild(closeBtn);
+        }
+    }
+
+    /**
+     * 显示一个持久的下载面板，包含下载链接、复制按钮、在新标签打开按钮以及关闭按钮。
+     * 该面板不会自动消失，用户可手动关闭。
+     * @param {string} url - 直接下载地址
+     * @param {string} [label] - 可选的友好文件名或说明
+     */
+    showDownloadPanel(url, label = '') {
+        const elementId = 'uploadStatus';
+        const statusEl = document.getElementById(elementId);
+        if (!statusEl) {
+            console.log('下载链接:', url);
+            return;
+        }
+        statusEl.style.position = 'relative';
+        statusEl.className = 'status download-panel';
+
+        // 清空并构建下载面板
+        statusEl.innerHTML = '';
+
+        const container = document.createElement('div');
+        container.className = 'download-container';
+        container.style.display = 'flex';
+        container.style.alignItems = 'center';
+        container.style.justifyContent = 'space-between';
+        container.style.gap = '12px';
+
+        const info = document.createElement('div');
+        info.className = 'download-info';
+        info.style.flex = '1';
+        info.style.minWidth = '0';
+
+        const title = document.createElement('div');
+        title.innerHTML = label ? `<strong>${this.escapeHtml(label)}</strong>` : `<strong>下载链接已就绪</strong>`;
+        title.style.marginBottom = '6px';
+
+        const linkEl = document.createElement('div');
+        linkEl.className = 'download-link';
+        linkEl.style.overflow = 'hidden';
+        linkEl.style.textOverflow = 'ellipsis';
+        linkEl.style.whiteSpace = 'nowrap';
+        linkEl.title = url;
+        linkEl.textContent = url;
+
+        info.appendChild(title);
+        info.appendChild(linkEl);
+
+        // 仅显示一个文字超链接（点击下载），并显示文件大小（若可获取）
+        const linkAnchor = document.createElement('a');
+        linkAnchor.className = 'download-link-a';
+        linkAnchor.href = url;
+        linkAnchor.target = '_blank';
+        linkAnchor.rel = 'noopener';
+        linkAnchor.textContent = '点击下载';
+        linkAnchor.download = '';
+        linkAnchor.style.display = 'inline-block';
+        linkAnchor.style.fontSize = '13px';
+        linkAnchor.style.color = '#9fc7ff';
+        linkAnchor.style.textDecoration = 'underline';
+        linkAnchor.title = url;
+
+        // 显示文件大小占位
+        const sizeEl = document.createElement('div');
+        sizeEl.className = 'download-size';
+        sizeEl.textContent = '大小：检测中...';
+        sizeEl.style.marginTop = '6px';
+        sizeEl.style.fontSize = '12px';
+        sizeEl.style.color = '#bfcfe8';
+
+        // 把链接和大小放入 info 区域
+        info.appendChild(linkAnchor);
+        info.appendChild(sizeEl);
+
+        container.appendChild(info);
+
+        // 异步尝试获取文件大小（HEAD 或 Range 请求）。注意：可能被 CDN 的 CORS 限制阻止。
+        (async () => {
+            const self = this;
+            try {
+                // 优先尝试 HEAD 请求以获取 Content-Length
+                let resp = await fetch(url, { method: 'HEAD' });
+                let size = resp.headers.get('content-length');
+                if (!size) {
+                    // 如果 HEAD 没有返回长度，尝试 Range 请求以读取响应头中的 Content-Range
+                    resp = await fetch(url, { method: 'GET', headers: { 'Range': 'bytes=0-0' } });
+                    size = resp.headers.get('content-length') || (resp.headers.get('content-range') ? resp.headers.get('content-range').split('/')[1] : null);
+                }
+                if (size) {
+                    const n = parseInt(size, 10);
+                    const pretty = self.formatFileSize ? self.formatFileSize(n) : (n ? `${(n / 1024).toFixed(2)} KB` : '未知');
+                    sizeEl.textContent = `大小：${pretty}`;
+                } else {
+                    sizeEl.textContent = '大小：未知';
+                }
+            } catch (e) {
+                // 可能被 CORS 阻止或网络错误
+                sizeEl.textContent = '大小：未知';
+            }
+        })();
+
+        statusEl.appendChild(container);
+
+        // 创建并插入右上角小叉关闭按钮（复用 showStatus 的样式）
+        let closeBtn = statusEl.querySelector('.status-close');
+        if (!closeBtn) {
+            closeBtn = document.createElement('button');
+            closeBtn.className = 'status-close';
+            closeBtn.setAttribute('aria-label', '关闭提示');
+            closeBtn.style.position = 'absolute';
+            closeBtn.style.top = '6px';
+            closeBtn.style.right = '6px';
+            closeBtn.style.border = 'none';
+            closeBtn.style.background = 'transparent';
+            closeBtn.style.color = '#999';
+            closeBtn.style.cursor = 'pointer';
+            closeBtn.style.fontSize = '14px';
+            closeBtn.style.padding = '2px 6px';
+            closeBtn.textContent = '✕';
+            closeBtn.onclick = () => {
+                statusEl.innerHTML = '';
+                statusEl.className = 'status';
+            };
+            statusEl.appendChild(closeBtn);
         }
     }
 

@@ -94,34 +94,43 @@ export default class VideoParser {
      * @param {string} originalUrl - 原始 B站 URL
      */
     showDownloadGuide(downloadUrl, message, originalUrl) {
+        // 如果全局播放器存在且提供 uiController，则使用其持久化下载面板
+        if (window.player && window.player.uiController && typeof window.player.uiController.showDownloadPanel === 'function') {
+            window.player.uiController.showDownloadPanel(downloadUrl, message || '视频下载链接');
+            return;
+        }
+        // 否则回退到内联的提示 HTML（兼容没有播放器实例的场景）
         const guideHtml = `
             <div class="parse-guide" style="background: #e3f2fd; border: 1px solid #90caf9; border-radius: 8px; padding: 20px; margin: 15px 0; text-align: left;">
                 <h3 style="margin-top: 0; color: #1565c0;">⚠️ 不能直接在线播放</h3>
                 <p><strong>${message}</strong></p>
-                <a href="${downloadUrl}" target="_blank" style="background: #1976d2; color: white; padding: 10px 15px; border-radius: 5px; text-decoration: none; display: inline-block; margin-bottom: 10px;">⬇️ 点击下载视频</a>
+                <a href="${downloadUrl}" target="_blank" rel="noopener" style="background: #1976d2; color: white; padding: 10px 15px; border-radius: 5px; text-decoration: none; display: inline-block; margin-bottom: 10px;">⬇️ 点击下载视频</a>
                 <div style="margin-top: 10px; font-size: 0.95em; color: #1565c0;">
                     下载完成后，请使用“打开本地文件”功能选择视频进行播放。<br>
-                    <button onclick="copyBilibiliUrl('${originalUrl}')" style="background: #43a047; color: white; padding: 6px 12px; border-radius: 5px; border: none; cursor: pointer; margin-top: 8px;">📋 复制原始链接</button>
+                    <button id="copyOriginalLinkBtn" style="background: #43a047; color: white; padding: 6px 12px; border-radius: 5px; border: none; cursor: pointer; margin-top: 8px;">📋 复制原始链接</button>
                 </div>
             </div>
         `;
         const statusEl = document.getElementById('uploadStatus');
         if (statusEl) {
             statusEl.innerHTML = guideHtml;
+            const btn = document.getElementById('copyOriginalLinkBtn');
+            if (btn) {
+                btn.onclick = () => {
+                    navigator.clipboard.writeText(originalUrl || downloadUrl).then(() => {
+                        alert('✅ 链接已复制到剪贴板。');
+                    }).catch(() => {
+                        const textArea = document.createElement('textarea');
+                        textArea.value = originalUrl || downloadUrl;
+                        document.body.appendChild(textArea);
+                        textArea.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(textArea);
+                        alert('✅ 链接已复制到剪贴板。');
+                    });
+                };
+            }
         }
-        window.copyBilibiliUrl = function(url) {
-            navigator.clipboard.writeText(url).then(() => {
-                alert('✅ Bilibili 链接已复制到剪贴板。');
-            }).catch(() => {
-                const textArea = document.createElement('textarea');
-                textArea.value = url;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-                alert('✅ Bilibili 链接已复制到剪贴板。');
-            });
-        };
     }
 
 

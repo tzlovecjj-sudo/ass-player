@@ -9,7 +9,7 @@ export default class FileHandler {
     }
 
     /**
-     * 加载本地视频文件。
+     * 加载未获取到下载链接。本地视频文件。
      * @param {File} file - 用户通过文件输入选择的视频文件
      */
     loadVideo(file) {
@@ -97,44 +97,51 @@ export default class FileHandler {
      * 它会通过后端的 API 来解析 Bilibili 等网站的 URL 以获取直接播放地址。
      */
     loadOnlineVideo() {
+        // 该方法已被上层逻辑替换为先调用后端 /api/auto-parse，再调用 loadOnlineVideoWithUrl
+        // 为兼容性保留老逻辑：尝试使用 videoParser 解析并加载
         const url = this.player.onlineVideoUrl.value.trim();
         if (!url) {
             this.player.showStatus('请输入有效的视频 URL。', 'error');
             return;
         }
-
         this.player.showStatus('正在解析视频链接...', 'info');
-
-        // 调用 videoParser（后端 /api/auto-parse 接口）来解析 URL
         this.player.videoParser.parseVideo(url)
             .then(videoUrl => {
-                if (!videoUrl) return; // 如果未返回可用直链，说明已提示用户
-                console.log('✅ 视频链接解析成功:', videoUrl);
-                this.player.showStatus('链接解析成功，正在加载视频...', 'success');
-                this.player.videoPlayer.src = videoUrl;
-                this.player.videoPlayer.load();
-                this.player.videoPlayer.onerror = () => {
-                    console.error('❌ 加载解析后的视频失败。');
-                    this.player.showStatus('视频加载失败，可能是链接已过期或跨域问题。', 'error');
-                };
-                this.player.videoPlayer.oncanplay = () => {
-                    console.log('✅ 视频已准备好，可以播放。');
-                    this.player.showStatus('视频加载完成。', 'success');
-                    this.player.videoPlayer.play().catch(() => {});
-                };
-                this.player.updateOnlineVideoInfo(url);
-                if (this.player.playPauseBtn) {
-                    this.player.playPauseBtn.focus();
-                }
+                if (!videoUrl) return;
+                this.loadOnlineVideoWithUrl(videoUrl, url);
             })
             .catch(error => {
-                // 解析失败时，video-parser 会自动显示详细提示，这里只做兜底
-                if (error && error.message && error.message.includes('无法直接在线播放')) {
-                    // 已有详细提示，无需重复
-                    return;
-                }
-                console.error('❌ 视频链接解析失败:', error);
-                this.player.showStatus(`链接解析失败: ${error.message}`, 'error');
+                console.error('视频解析或加载失败:', error);
+                this.player.showStatus(`链接解析失败: ${error.message || error}`, 'error');
             });
+    }
+
+    /**
+     * 直接使用已解析出的直链加载视频，并在加载失败时提示下载链接（持久显示）。
+     * @param {string} videoUrl - 直接播放的直链
+     * @param {string} originalUrl - 原始用户输入的 URL（用于更新 UI）
+     */
+    loadOnlineVideoWithUrl(videoUrl, originalUrl = '') {
+        if (!videoUrl) {
+            this.player.showStatus('未提供有效的视频直链。', 'error');
+            return;
+        }
+        console.log('通过直链加载视频：', videoUrl);
+        this.player.videoPlayer.src = videoUrl;
+        this.player.videoPlayer.load();
+
+        // 处理加载成功
+        this.player.videoPlayer.oncanplay = () => {
+            this.player.showStatus('视频加载完成，正在播放...', 'success');
+            this.player.videoPlayer.play().catch(() => {});
+            this.player.updateOnlineVideoInfo(originalUrl || videoUrl);
+        };
+
+        // 处理加载失败：提示下载（持久显示带手动链接）
+        this.player.videoPlayer.onerror = () => {
+            console.error('加载视频失败，准备提示下载链接');
+            // 使用更人性化的下载面板，包含复制/在新标签打开/强制下载功能，且为持久显示
+            this.player.uiController.showDownloadPanel(videoUrl, '视频下载链接');
+        };
     }
 }

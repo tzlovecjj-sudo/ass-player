@@ -28,7 +28,7 @@ _parser = BiliBiliParser()
 # 使用字典在内存中实现简单的速率限制
 # 键为客户端的 IP 地址，值为最后一次请求的时间戳
 _last_request = {}
-_RATE_LIMIT_SECONDS = 1  # 设置同一个客户端两次请求之间的最小时间间隔（秒）
+_RATE_LIMIT_SECONDS = 1  # 设置同一个客户端两次请求之间的最小时间间隔（秒）。
 
 # 定义根路由，用于渲染主页面
 @app.route('/')
@@ -97,8 +97,12 @@ def auto_parse():
     now = time.time()  # 获取当前时间戳
     last = _last_request.get(remote, 0)  # 获取该 IP 的上次请求时间
     if now - last < _RATE_LIMIT_SECONDS:
-        # 如果请求间隔过短，返回 429 错误
-        return jsonify({'success': False, 'error': '请求过于频繁'}), 429
+        # 如果请求间隔过短，返回 429 错误并包含 Retry-After 头，提示客户端稍后重试
+        retry_after = int(_RATE_LIMIT_SECONDS - (now - last)) + 1
+        resp = jsonify({'success': False, 'error': '请求过于频繁', 'retry_after': retry_after})
+        resp.status_code = 429
+        resp.headers['Retry-After'] = str(retry_after)
+        return resp
     _last_request[remote] = now  # 更新该 IP 的最后请求时间
 
     # 检测访问来源
@@ -112,11 +116,12 @@ def auto_parse():
         if video_url:
             quality = _parser._detect_actual_quality(video_url) if hasattr(_parser, '_detect_actual_quality') else '未知'
             logger.info('解析成功: %s (清晰度: %s)', video_url, quality)
+            # 无论本地还是域名访问，都返回 download_url（便于前端直接触发下载或展示链接）
             if is_local:
-                # 本地访问，返回直链
-                return jsonify({'success': True, 'video_url': video_url, 'quality': quality, 'message': f'解析成功 ({quality})'})
+                # 本地访问，返回直链与下载链接
+                return jsonify({'success': True, 'video_url': video_url, 'download_url': video_url, 'quality': quality, 'message': f'解析成功 ({quality})'})
             else:
-                # 域名访问，返回下载链接和提示
+                # 域名访问，返回下载链接和提示（video_url 仍置为 None）
                 return jsonify({
                     'success': True,
                     'video_url': None,

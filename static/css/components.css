@@ -174,3 +174,76 @@
         padding: 20px;
     }
 }
+
+/* 下载面板与按钮样式优化 */
+.download-panel {
+    text-align: left;
+    padding: 10px;
+    border-radius: 6px;
+    background: #121212;
+    border: 1px solid #2e2e2e;
+    color: #e6eef9;
+}
+.download-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+.download-info {
+    flex: 1 1 0%;
+    min-width: 0;
+}
+.download-link {
+    font-size: 12px;
+    color: #9fc7ff;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.download-container .btn {
+    font-size: 13px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    background: #2f2f2f;
+    color: #fff;
+}
+.download-container .btn.small {
+    font-size: 13px;
+    padding: 6px 10px;
+}
+.download-container .btn.primary {
+    background: #ff6b00;
+    color: #fff;
+}
+.status-close {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    background: transparent;
+    border: none;
+    color: #999;
+    cursor: pointer;
+}
+.status-close:focus {
+    outline: 2px solid rgba(255,107,0,0.25);
+}
+
+/* 文字超链接样式（下载面板） */
+.download-link-a {
+    font-size: 13px;
+    color: #9fc7ff;
+    text-decoration: underline;
+    word-break: break-all;
+}
+
+.download-size {
+    color: #bfcfe8;
+    font-size: 12px;
+    margin-top: 6px;
+}
