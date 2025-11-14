@@ -110,16 +110,20 @@ def test_frontend_reports_cdn_on_playing():
         page.goto(page_path)
         page.wait_for_load_state('domcontentloaded')
 
-        page.click('#loadOnlineVideoBtn')
+        # Trigger the auto-parse action and wait for the report request reliably.
+        # Use expect_request so we don't miss the request due to timing/race conditions.
         try:
-            page.wait_for_function("() => { const v = document.querySelector('video'); return v && v.src && v.src.includes('example.playing.net'); }", timeout=3000)
-            req = page.wait_for_request("**/api/report-cdn", timeout=3000)
+            with page.expect_request("**/api/report-cdn", timeout=5000) as req_info:
+                page.click('#loadOnlineVideoBtn')
+            req = req_info.value
             data = req.post_data
             if isinstance(data, bytes):
                 data = data.decode('utf-8')
-            j = json.loads(data)
-            reported.update(j)
+            if data:
+                j = json.loads(data)
+                reported.update(j)
         except Exception:
+            # Keep reported empty so the final asserts will fail and surface diagnostics.
             pass
 
         browser.close()
