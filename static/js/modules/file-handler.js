@@ -123,7 +123,7 @@ export default class FileHandler {
      * @param {string} videoUrl - 直接播放的直链
      * @param {string} originalUrl - 原始用户输入的 URL（用于更新 UI）
      */
-    loadOnlineVideoWithUrl(videoUrl, originalUrl = '', size = null) {
+    loadOnlineVideoWithUrl(videoUrl, originalUrl = '', size = null, parseStartTime = null) {
         if (!videoUrl) {
             this.player.showStatus('未提供有效的视频直链。', 'error');
             return;
@@ -145,6 +145,58 @@ export default class FileHandler {
             this.player.videoPlayer.play().catch((e) => { console.debug('自动 play() 被阻止或失败：', e); });
         } catch (e) {
             console.debug('将直链设置到播放器时出错：', e);
+        }
+
+        // 2) 如果前端提供了解析开始时间（parseStartTime），则监听播放成功事件并上报至后端
+        try {
+            if (parseStartTime && typeof parseStartTime === 'number') {
+                const videoEl = this.player.videoPlayer;
+                let reported = false;
+                // 使用后端注入的配置（如果存在），否则回退到默认值
+                const REPORT_TIMEOUT_MS = (typeof window !== 'undefined' && window.ASS_PLAYER_CONFIG && window.ASS_PLAYER_CONFIG.REPORT_TIMEOUT_MS) ?
+                    Number(window.ASS_PLAYER_CONFIG.REPORT_TIMEOUT_MS) : 3000;
+                const report = (eventName) => {
+                    if (reported) return;
+                    reported = true;
+                    try {
+                        let elapsed;
+                        if (eventName === 'timeout') {
+                            // 使用固定超时值以避免小范围计时差异影响统计
+                            elapsed = Math.round(REPORT_TIMEOUT_MS);
+                        } else {
+                            const now = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+                            elapsed = Math.round(now - parseStartTime);
+                        }
+                        // 从 videoUrl 中提取 hostname
+                        let hostname = '';
+                        try { hostname = (new URL(videoUrl)).hostname; } catch (e) { hostname = '' + videoUrl; }
+                        const payload = JSON.stringify({ hostname: hostname, load_ms: elapsed, event: eventName });
+                        // 使用 sendBeacon 以在页面卸载时仍尽量发送成功
+                        if (navigator && navigator.sendBeacon) {
+                            const blob = new Blob([payload], { type: 'application/json' });
+                            navigator.sendBeacon('/api/report-cdn', blob);
+                        } else {
+                            // 退回到 fetch，使用 keepalive 以提高成功率
+                            try { fetch('/api/report-cdn', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true }); } catch (e) { /* 忽略 */ }
+                        }
+                    } catch (e) {
+                        console.debug('上报 CDN 统计失败：', e);
+                    }
+                    // 移除事件监听
+                    try { videoEl.removeEventListener('playing', onPlaying); } catch (e) {}
+                    try { videoEl.removeEventListener('canplay', onCanplay); } catch (e) {}
+                    try { clearTimeout(timeoutId); } catch (e) {}
+                };
+
+                const onPlaying = () => report('playing');
+                const onCanplay = () => report('canplay');
+                // 超时回退：若在 15s 内都未收到播放事件，则放弃
+                const timeoutId = setTimeout(() => report('timeout'), 15000);
+                videoEl.addEventListener('playing', onPlaying, { once: true });
+                videoEl.addEventListener('canplay', onCanplay, { once: true });
+            }
+        } catch (e) {
+            console.debug('设置播放上报监听时出错：', e);
         }
 
         // 2) 同时展示下载面板（始终可见，供手动下载或在新标签打开）
