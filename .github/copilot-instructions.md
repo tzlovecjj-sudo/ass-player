@@ -68,63 +68,40 @@ python run.py
 ## PR 检查清单（AI 代理提交 PR 前应验证）
 - 修改解析器：同时更新或新增 `tests/test_bilibili_parser.py` 的用例。
 - 修改缓存：保证 `run.py` 注入路径保持兼容，附带迁移说明。
-- 网络请求：所有新请求需可 mock，且测试不应依赖线上 API。
+# Copilot 指南 — ass-player（精简、面向 AI 代理）
 
----
-需要我为某项改进生成具体补丁（例如启用 Redis 缓存、添加 1080P 回退策略、或添加 CI 配置）吗？请指定目标，我会继续实现并运行测试。
- 
-## 已知局限 与 待补充测试（来自维护者说明）
-- 当前实现为经过多轮清理后的“基础可用版本”，历史上曾包含多种临时/实验性策略（某些已被移除）。测试用例尚未完全跟进这些变更——维护者已优先修复运行时逻辑，但测试需要补充。
-- 维护者关键信息（请保留并记录在 PR 中）：
-  - 有若干“临时方案”在开发过程中被删除（例如 HTML 提取的 fallback、复杂的内存速率限制等），这些逻辑相关的测试也被移除或未更新。
-  - `cache_manager.py` 当前为 no-op；如要启用缓存，请替换该模块或在解析器中使用 `_disk_cache_conn` 注入（`run.py` / `start.py` 已显示如何注入 SQLite 连接）。
-  - `_try_convert_cdn_url` 是一个轻量、无阻塞的主机替换函数；当前实现会将解析出的直链主机替换为内部目标 host（`upos-sz-estgcos.bilivideo.com`）。这在国外服务器访问时用于兼容性，但会改变原始直链主机名，导致部分旧的测试断言（期望原始主机）失败。
-- 建议补充的测试（优先级）:
-  1. 验证 `_is_private_host` 和 `_is_url_allowed` 对常见私有/环回/公网 IP 的判断（已存在但应扩充边界值）。
-  2. 对 `_try_convert_cdn_url` 的行为编写两组测试：一组验证“当 hostname 明显为国内镜像或包含关键字时允许替换”，另一组验证“当为任意公网域名时不应随意替换”（或在 PR 中说明为什么需要替换）。
-  3. 为 `cache_manager` 新实现编写集成测试，验证 `run.py` 注入的 SQLite 连接能被解析器消费（涉及 `_disk_cache_conn`、`_ensure_disk_cache` 行为）。
-  4. 为 `app.py` 的 `/api/auto-parse` 增加更多错误路径与并发访问的模拟测试（mock 解析器以避免网络调用）。
+以下为能让 AI 代理快速上手本仓库的必要知识点、约定和示例。优先阅读 `ass_player/bilibili.py`、`app.py`、`run.py`、`cache_manager.py`、`tests/`。
 
-注：我可以根据上面的优先级为你生成测试补丁（逐项），或先把测试调整为与当前实现一致（非破坏性修复），再按优先级逐个补全新的用例。请告诉我你希望的下一步。
-```# Copilot Instructions for ASS 字幕播放器 (ass-player)
+- 架构要点：后端为 Flask（`app.py`），解析器实现集中在 `ass_player/bilibili.py`（BiliBiliParser）。前端为纯静态文件，位于 `static/`，不需要构建。启动脚本：开发用 `start.py`（自动打开浏览器），生产用 `run.py`（会注入 SQLite）。
 
-## 项目架构与主要组件
-- **后端**：基于 Flask，入口为 `app.py`，核心解析逻辑在 `ass_player/bilibili.py`，API 路由在 `app.py`/`run.py`。
-- **前端**：静态资源位于 `static/`（JS/CSS），页面模板在 `templates/`。主播放器逻辑在 `static/js/ass-player.js`，模块化 JS 代码在 `static/js/modules/`。
-- **解析流程**：前端通过 API（如 `/api/auto-parse`）请求后端解析 B 站视频直链，后端做安全校验与解析，返回可用视频流。
-- **缓存与速率限制**：`cache_manager.py` 提供内存缓存与简单速率限制，生产环境建议替换为 Redis 等持久化方案。
+- 安全约定（必须遵守）：所有新增解析/请求路径必须调用 `ass_player/bilibili.py` 中的 `_is_url_allowed` 或 `_is_private_host` 以防 SSRF；不要在解析流程中做额外的阻塞外网下载（项目故意避免读取远端 Content-Length）。
 
-## 开发与调试
-- 推荐使用 Python 3.9+ 虚拟环境，依赖管理见 `requirements.txt`。
-- 启动开发服务：
-  - 交互式：`python start.py`（自动打开浏览器）
-  - 生产/容器：`python run.py`（支持环境变量配置 host/port）
-- 单元测试：`python run_tests.py` 或 `pytest tests/`，测试覆盖解析、缓存等核心模块。
-- 前端无需构建，直接修改 `static/` 下 JS/CSS 即可热更新。
+- 缓存契约：`run.py` 在启动时可创建并注入 SQLite 连接到解析器（属性 `_disk_cache_conn`，并设置 `_owns_disk_conn`）。如果实现持久化缓存，请复用这两个属性或替换 `cache_manager.py`，保持 `get_cache()` 接口兼容性。
 
-## 约定与安全
-- **API 安全**：后端仅允许解析 bilibili.com 域名，防止 SSRF，详见 `bilibili.py` 域名/IP 校验逻辑。
-- **速率限制**：开发环境为内存速率限制，生产请用 Redis+Flask-Limiter。
-- **默认监听**：127.0.0.1:8080，避免公网暴露，必要时通过 `ASS_PLAYER_HOST` 环境变量调整。
-- **依赖安装**：务必在虚拟环境下 `pip install -r requirements.txt`，避免全局污染。
+- 修改解析器注意点：在 `BiliBiliParser.get_real_url` 内按序添加策略，局部捕获异常并返回 None，让上层（`app.py`）报告错误。若改动 `_try_convert_cdn_url`，同时更新 `tests/test_try_convert_cdn.py`。
 
-## 代码风格与测试
-- 推荐使用 `pytest` 进行测试，测试文件位于 `tests/`，如 `test_bilibili_parser.py`。
-- 建议在 CI/CD 中集成 lint（如 ruff/flake8）与自动化测试。
-- 解析模块建议用 requests-mock 或 responses 进行接口模拟测试。
+- 测试与调试（可复制的例子）：
+  - 运行全部测试（PowerShell）：
+    ```powershell
+    python run_tests.py
+    # 或
+    pytest tests/
+    ```
+  - Mock 私有 IP：在测试里 patch `socket.getaddrinfo`（参见 `tests/test_bilibili_ssrf.py`）。
+  - Mock 解析网络：patch `ass_player.bilibili.BiliBiliParser._get_720p_mp4` 来绕过外网请求（参见 `tests/test_bilibili_parser.py`）。
 
-## 关键文件/目录
-- `app.py`/`run.py`：后端主入口
-- `ass_player/bilibili.py`：B 站解析核心
-- `cache_manager.py`：缓存与速率限制
-- `static/js/ass-player.js`、`static/js/modules/`：前端播放器与模块
-- `templates/`：页面模板
-- `requirements.txt`：依赖清单
-- `tests/`：单元测试
+- 前端约定：主要逻辑在 `static/js/ass-player.js` 与 `static/js/modules/`；前端在解析事件后会向 `/api/report-cdn` 上报 `hostname` 与 `load_ms`，后端会将其写入 `cdn_stats`（若 SQLite 注入可用）。前端文件修改即时生效，无需构建步骤。
 
-## 其他
-- 生产部署建议用 gunicorn/uvicorn + nginx，详见 README。
-- 云部署（Zeabur）支持自动化测试与环境变量端口适配，见 `Zeabur部署教程.md`。
+- 提交/PR 检查（必做项）：
+  1. 修改解析逻辑时，更新或添加对应测试（通常是 `tests/test_bilibili_*.py`）。
+  2. 所有网络交互在测试中必须可 mock（不要依赖真实网络）。
+  3. 保持 SSRF 校验和 `_disk_cache_conn` 注入兼容性。
 
----
-如需更详细的开发流程、API 约定或安全策略，请参考 `README.md` 与源码注释。
+- 快速参考文件：
+  - `ass_player/bilibili.py`：解析器、SSRF 检查、`_try_convert_cdn_url`
+  - `app.py`：Flask 路由（`/api/auto-parse`, `/api/report-cdn`）
+  - `run.py` / `start.py`：启动、SQLite 注入
+  - `cache_manager.py`：当前为轻量/兼容实现（可替换）
+  - `tests/`：单元测试示例与 mock 模式
+
+如果你想，我可以把某个改动（比如启用 Redis 缓存、添加 1080p 回退或 CI 配置）做成补丁并运行测试。需要我先实现哪一项？
