@@ -41,12 +41,23 @@
     aspect-ratio: auto !important;
 }
 
+/* 强制在网页全屏时，让视频区域确实填满视口高度，避免被 layout.css 的 aspect-ratio/max-height 限制 */
+.web-fullscreen-mode .video-section,
+.web-fullscreen-mode .video-container {
+    height: 100vh !important;
+    min-height: 100vh !important;
+}
+
 .web-fullscreen-mode #videoCanvas {
-    max-height: none !important;
-    max-width: none !important;
-    width: 100% !important;
+    /* 让 canvas 以高度为优先进行自适应缩放，宽度自适应以保持宽高比
+       这样在高屏（竖屏）或宽屏（横屏）下都不会裁剪视频，而是保留左右黑边 */
+    max-height: 100% !important;
+    max-width: 100% !important;
+    width: auto !important;
     height: 100% !important;
-    object-fit: contain !important;
+    display: block !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
 }
 
 .web-fullscreen-mode .controls {
@@ -114,12 +125,22 @@
     aspect-ratio: auto !important;
 }
 
+/* 同样在浏览器原生全屏时确保填满高度 */
+.browser-fullscreen-mode .video-section,
+.browser-fullscreen-mode .video-container {
+    height: 100vh !important;
+    min-height: 100vh !important;
+}
+
 .browser-fullscreen-mode #videoCanvas {
-    max-height: none !important;
-    max-width: none !important;
-    width: 100% !important;
+    /* 同上：浏览器全屏下也使用以高度为基准的缩放，避免裁剪 */
+    max-height: 100% !important;
+    max-width: 100% !important;
+    width: auto !important;
     height: 100% !important;
-    object-fit: contain !important;
+    display: block !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
 }
 
 .browser-fullscreen-mode .controls {

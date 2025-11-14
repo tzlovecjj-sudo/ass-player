@@ -16,6 +16,12 @@ export default class FullscreenControls {
         this._onDocMouseMove = this.handleDocumentMouseMove.bind(this);
         this._onDocTouch = this.handleDocumentTouch.bind(this);
         this._listenersAttached = false; // 是否已在全屏模式下附加文档级监听
+        // 用于在网页全屏时强制设置容器高度（避免被 layout.css 限制）
+        this._videoSectionEl = null;
+        this._videoContainerEl = null;
+        this._prevVideoSectionHeight = null;
+        this._prevVideoContainerHeight = null;
+        this._onFullscreenWindowResize = this._onFullscreenWindowResize.bind(this);
     }
 
     // --- 全屏功能切换 ---
@@ -58,6 +64,11 @@ export default class FullscreenControls {
         
         // 进入全屏后，设置控制栏的自动隐藏逻辑
         this.setupFullscreenControls();
+
+        // 强制设置视频容器高度为视口高度，防止被 layout.css 中的 aspect-ratio/max-height 限制
+        this._applyFullscreenInlineHeights();
+        // 在窗口调整大小时同步更新高度
+        window.addEventListener('resize', this._onFullscreenWindowResize);
     }
 
     /**
@@ -77,6 +88,10 @@ export default class FullscreenControls {
         
         this.player.setupCanvas(); // 重新设置 Canvas 尺寸
         this.player.startRendering(); // 确保渲染循环正在运行
+
+        // 退出网页全屏时还原之前的内联样式并移除 resize 监听
+        this._removeFullscreenInlineHeights();
+        window.removeEventListener('resize', this._onFullscreenWindowResize);
     }
 
     // --- 浏览器原生全屏功能 ---
@@ -146,6 +161,8 @@ export default class FullscreenControls {
             
             // 设置控制栏的自动隐藏逻辑
             this.setupFullscreenControls();
+            // 在浏览器全屏时也尝试应用同样的内联高度策略
+            this._applyFullscreenInlineHeights();
         } else {
             // 如果当前不在浏览器全屏模式 (已退出)
             document.body.classList.remove('browser-fullscreen-mode'); // 移除 CSS 类
@@ -161,6 +178,9 @@ export default class FullscreenControls {
             
             // 退出浏览器全屏后，确保控制栏完全可见
             this.showControlsPermanently();
+
+            // 退出浏览器全屏，移除内联高度
+            this._removeFullscreenInlineHeights();
             
             // 如果之前是浏览器全屏，并且当前处于网页全屏，需要重新设置控制栏逻辑
             if (wasBrowserFullscreen && this.isWebFullscreen) {
@@ -171,6 +191,69 @@ export default class FullscreenControls {
         // 重新设置 Canvas 尺寸以适应新的显示模式
         this.player.setupCanvas();
         this.player.startRendering(); // 确保渲染循环正在运行
+    }
+
+    // --- 内联高度应用/恢复辅助方法 ---
+    _applyFullscreenInlineHeights() {
+        try {
+            this._videoSectionEl = document.querySelector('.video-section');
+            this._videoContainerEl = document.querySelector('.video-container');
+            if (!this._videoSectionEl || !this._videoContainerEl) return;
+
+            // 保存当前 inline height 以便恢复
+            this._prevVideoSectionHeight = this._videoSectionEl.style.height || '';
+            this._prevVideoContainerHeight = this._videoContainerEl.style.height || '';
+
+            const h = window.innerHeight + 'px';
+            this._videoSectionEl.style.height = h;
+            this._videoSectionEl.style.minHeight = h;
+            this._videoContainerEl.style.height = h;
+            this._videoContainerEl.style.minHeight = h;
+        } catch (e) {
+            // 安全降级：不要阻塞主流程
+            console.warn('应用全屏内联高度失败', e);
+        }
+    }
+
+    _removeFullscreenInlineHeights() {
+        try {
+            if (!this._videoSectionEl || !this._videoContainerEl) return;
+            // 恢复之前保存的 inline height（可能为空字符串）
+            this._videoSectionEl.style.height = this._prevVideoSectionHeight || '';
+            this._videoSectionEl.style.minHeight = '';
+            this._videoContainerEl.style.height = this._prevVideoContainerHeight || '';
+            this._videoContainerEl.style.minHeight = '';
+
+            this._prevVideoSectionHeight = null;
+            this._prevVideoContainerHeight = null;
+            this._videoSectionEl = null;
+            this._videoContainerEl = null;
+        } catch (e) {
+            console.warn('移除全屏内联高度失败', e);
+        }
+    }
+
+    _onFullscreenWindowResize() {
+        // 如果当前处于网页或浏览器全屏，重新设置 inline 高度为最新视口高度
+        if (this.isWebFullscreen || this.isBrowserFullscreen) {
+            try {
+                const h = window.innerHeight + 'px';
+                if (this._videoSectionEl) {
+                    this._videoSectionEl.style.height = h;
+                    this._videoSectionEl.style.minHeight = h;
+                }
+                if (this._videoContainerEl) {
+                    this._videoContainerEl.style.height = h;
+                    this._videoContainerEl.style.minHeight = h;
+                }
+                // 触发 canvas 重计算
+                if (this.player && typeof this.player.setupCanvas === 'function') {
+                    this.player.setupCanvas();
+                }
+            } catch (e) {
+                // 忽略错误
+            }
+        }
     }
 
     // --- 键盘事件处理 ---

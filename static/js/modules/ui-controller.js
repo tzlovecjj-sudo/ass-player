@@ -275,8 +275,15 @@ export default class UIController {
         const containerHeight = container.clientHeight;
         const videoAspectRatio = this.player.videoPlayer.videoWidth / this.player.videoPlayer.videoHeight;
         const containerAspectRatio = containerWidth / containerHeight;
-        
-        if (containerAspectRatio > videoAspectRatio) {
+
+        // 如果处于网页全屏或浏览器全屏，遵循 B 站的视觉行为：优先以高度为基准铺满，宽度自适应
+        const isWebFs = document.body.classList && document.body.classList.contains('web-fullscreen-mode');
+        const isBrowserFs = document.body.classList && document.body.classList.contains('browser-fullscreen-mode');
+        if (isWebFs || isBrowserFs) {
+            // 强制使用高度优先的缩放，保证上下铺满、左右留黑
+            this.player.videoCanvas.style.height = '100%';
+            this.player.videoCanvas.style.width = 'auto';
+        } else if (containerAspectRatio > videoAspectRatio) {
             // 容器比视频更“宽”，因此以容器高度为基准进行缩放
             this.player.videoCanvas.style.height = '100%';
             this.player.videoCanvas.style.width = 'auto';
