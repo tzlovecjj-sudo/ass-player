@@ -301,7 +301,9 @@ class BiliBiliParser:
 
             # 如果被判定为国外 CDN，则尝试用缓存中最优国内 CDN 替换
             if is_foreign:
-                best = self._get_best_china_host()
+                # 优先使用显式设置的 _best_china_host（例如测试中直接赋值的情况），
+                # 否则回退到基于统计计算的最优国内 host
+                best = self._best_china_host or self._get_best_china_host()
                 target = best or default_china_host
                 try:
                     new_parsed = parsed._replace(netloc=target)
