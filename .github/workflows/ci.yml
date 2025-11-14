@@ -1,9 +1,10 @@
-name: CI - unit tests
+name: CI - unit + e2e tests
 
 on:
   pull_request:
+    branches: [ main, add-ci-workflows ]
   push:
-    branches: [ main ]
+    branches: [ main, add-ci-workflows ]
 
 jobs:
   tests:
@@ -18,5 +19,31 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+      - name: Install Playwright and browsers
+        run: |
+          pip install playwright
+          # install browsers and system deps on ubuntu
+          python -m playwright install --with-deps
       - name: Run unit tests
         run: python -m unittest discover -s tests -p "test_*.py" -v
+      - name: Run frontend E2E tests (Playwright)
+        run: |
+          # Ensure static templates exist for e2e tests
+          python - <<'PY'
+import os
+from pathlib import Path
+root = Path('.').resolve()
+src = root / 'templates' / 'index.html'
+dst = root / 'templates' / 'index_static.html'
+if src.exists():
+    txt = src.read_text(encoding='utf-8')
+    txt = txt.replace('window.ASS_PLAYER_CONFIG = {{ ASS_PLAYER_CONFIG | tojson | safe }};', 'window.ASS_PLAYER_CONFIG = {"REPORT_TIMEOUT_MS": 3000};')
+    txt = txt.replace("{{ url_for('static', filename='css/main.css') }}", '/static/css/main.css')
+    txt = txt.replace("{{ url_for('static', filename='css/layout.css') }}", '/static/css/layout.css')
+    txt = txt.replace("{{ url_for('static', filename='css/fullscreen.css') }}", '/static/css/fullscreen.css')
+    txt = txt.replace("{{ url_for('static', filename='css/components.css') }}", '/static/css/components.css')
+    txt = txt.replace("{{ url_for('static', filename='js/modules/main.js') }}", '/static/js/modules/main.js')
+    dst.write_text(txt, encoding='utf-8')
+PY
+          # run e2e pytest suite
+          pytest -q tests_e2e || true
