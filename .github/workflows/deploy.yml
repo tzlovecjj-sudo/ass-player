@@ -1,0 +1,14 @@
+name: Deploy placeholder
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Note
+        run: |
+          echo "Zeabur typically auto-deploys from GitHub; this workflow is a placeholder."

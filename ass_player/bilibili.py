@@ -78,6 +78,22 @@ class BiliBiliParser:
         
         self.session = session
         self.timeout = timeout
+        # 内存 CDN 统计缓存：
+        # 格式: { hostname: { 'is_china': bool|None, 'count': int, 'avg_load': float } }
+        # 由运行时记录加载成功的时间来更新 `avg_load`，并由 `_get_best_china_host` 返回最快的国内 CDN
+        self._cdn_stats = {}
+        # 全局最优国内 CDN hostname（基于历史平均加载时间）
+        self._best_china_host = None
+        # 如果外部注入了磁盘缓存连接，则保存引用并初始化磁盘表/加载数据
+        self._disk_cache_conn = disk_cache_conn
+        try:
+            if getattr(self, '_disk_cache_conn', None) is not None:
+                try:
+                    self._ensure_disk_cache()
+                except Exception:
+                    logger.exception('初始化磁盘 CDN 缓存时发生异常')
+        except Exception:
+            logger.debug('设置 disk_cache_conn 时发生异常')
     # NOTE: 不再缓存或主动获取远端资源的 Content-Length（避免在本地解析时发生阻塞）
 
         # 已移除缓存机制：不再在内存或磁盘中保存解析结果
@@ -259,19 +275,169 @@ class BiliBiliParser:
         try:
             parsed = urllib_parse(url)
             hostname = (parsed.hostname or '').lower()
-            target = 'upos-sz-estgcos.bilivideo.com'
-            # 如果当前 hostname 就是目标 host，则直接返回原始 URL
-            if hostname == target:
+            # 保守替换策略：仅在判定为“国外 CDN”时，才尝试用已知的国内 CDN替换。
+            # 已知并推荐的默认国内 host（当缓存中尚无更好候选时可作为后备）
+            default_china_host = 'upos-sz-estgcos.bilivideo.com'
+
+            # 快速路径：如果 hostname 已经是某个国内候选或默认 host，则保持不变
+            if hostname in (default_china_host, (self._best_china_host or '').lower()):
                 return url
-            # 仅替换 host（netloc），保留原始的 path/query 不变以避免破坏上游签名参数
-            new_parsed = parsed._replace(netloc=target)
-            new_url = urlunparse(new_parsed)
-            logger.debug('将 CDN 主机替换为统一 host（保留查询参数）：%s -> %s', hostname, target)
-            return new_url
+
+            # 简单启发式判定：包含常见国外 CDN 关键字则认为来源于国外 CDN
+            foreign_keywords = ('akamaized', 'akamai', 'edgesuite', 'cloudfront', 'fastly', 'cdn77', 'cdn.cloudflare')
+            china_keywords = ('bilivideo', 'bcebos', 'alicdn', '.cn', 'tencent', 'qcloud', 'upai', 'estgcos')
+
+            is_foreign = any(k in hostname for k in foreign_keywords)
+            is_china = any(k in hostname for k in china_keywords)
+
+            # 记录首次见到的 host 信息（不覆盖已有的 is_china 判断，除非为 True）
+            entry = self._cdn_stats.get(hostname)
+            if entry is None:
+                self._cdn_stats[hostname] = {'is_china': True if is_china else (False if is_foreign else None), 'count': 0, 'avg_load': None}
+
+            # 如果该 host 被判定为国内，则无需替换
+            if is_china:
+                return url
+
+            # 如果被判定为国外 CDN，则尝试用缓存中最优国内 CDN 替换
+            if is_foreign:
+                best = self._get_best_china_host()
+                target = best or default_china_host
+                try:
+                    new_parsed = parsed._replace(netloc=target)
+                    new_url = urlunparse(new_parsed)
+                    logger.debug('保守替换国外 CDN 主机 %s -> %s', hostname, target)
+                    return new_url
+                except Exception:
+                    logger.debug('替换 CDN 主机时发生异常，返回原始 URL')
+                    return url
+
+            # 未明确判定为国内或国外时，保持原始 URL（避免误替换）
+            return url
         except Exception:
-            # 发生任何异常时，保持原始 URL
             logger.debug('无阻塞主机替换发生异常，返回原始 URL')
-        return url
+            return url
+
+    def _ensure_disk_cache(self):
+        """确保磁盘中的 CDN 统计表存在并加载已有数据到内存缓存。"""
+        conn = getattr(self, '_disk_cache_conn', None)
+        if conn is None:
+            return
+        try:
+            cur = conn.cursor()
+            cur.execute("""
+            CREATE TABLE IF NOT EXISTS cdn_stats (
+                hostname TEXT PRIMARY KEY,
+                is_china INTEGER,
+                count INTEGER,
+                avg_load REAL,
+                updated_ts REAL
+            )""")
+            conn.commit()
+            # 加载已有数据
+            try:
+                cur.execute("SELECT hostname, is_china, count, avg_load FROM cdn_stats")
+                rows = cur.fetchall()
+                for hostname, is_china, cnt, avg in rows:
+                    try:
+                        self._cdn_stats[hostname] = {'is_china': (bool(is_china) if is_china is not None else None), 'count': (cnt or 0), 'avg_load': avg}
+                    except Exception:
+                        logger.debug('加载单条 CDN 记录失败: %s', hostname)
+                # 计算最优国内 CDN
+                self._best_china_host = self._get_best_china_host()
+            except Exception:
+                logger.debug('从磁盘加载 CDN 统计数据失败')
+        except Exception:
+            logger.exception('创建或初始化 cdn_stats 表时失败')
+
+    def _save_cdn_entry(self, hostname: str):
+        """将内存中单条 CDN 统计写入磁盘（INSERT OR REPLACE）。"""
+        conn = getattr(self, '_disk_cache_conn', None)
+        if conn is None or not hostname:
+            return
+        h = hostname.lower()
+        entry = self._cdn_stats.get(h)
+        if not entry:
+            return
+        try:
+            cur = conn.cursor()
+            cur.execute("INSERT OR REPLACE INTO cdn_stats (hostname, is_china, count, avg_load, updated_ts) VALUES (?, ?, ?, ?, ?)",
+                        (h, (1 if entry.get('is_china') else (0 if entry.get('is_china') is False else None)), entry.get('count', 0), entry.get('avg_load'), time.time()))
+            conn.commit()
+        except Exception:
+            logger.exception('将 CDN 统计写入磁盘时发生异常: %s', hostname)
+
+    def mark_cdn_hostname(self, hostname: str, is_china: bool):
+        """记录或更新主机是否为国内 CDN 的判断（由运行时或集成点调用）。"""
+        if not hostname:
+            return
+        h = hostname.lower()
+        entry = self._cdn_stats.get(h)
+        if entry is None:
+            self._cdn_stats[h] = {'is_china': is_china, 'count': 0, 'avg_load': None}
+        else:
+            # 只有在尚未明确或为 False 时更新为 True，避免误覆盖
+            if entry.get('is_china') is None or (not entry.get('is_china') and is_china):
+                entry['is_china'] = is_china
+        # 持久化到磁盘（若可用）
+        try:
+            self._save_cdn_entry(hostname)
+        except Exception:
+            logger.debug('持久化 CDN 主机标记时发生异常')
+
+    def record_cdn_load(self, hostname: str, load_time: float):
+        """记录一次 CDN 加载成功的耗时，更新运行平均值并刷新 `_best_china_host`。
+
+        :param hostname: 发生加载的 CDN host
+        :param load_time: 本次加载耗时（秒或毫秒，调用方需一致）
+        """
+        if not hostname or load_time is None:
+            return
+        h = hostname.lower()
+        entry = self._cdn_stats.get(h)
+        if entry is None:
+            entry = {'is_china': None, 'count': 0, 'avg_load': None}
+            self._cdn_stats[h] = entry
+
+        # 更新运行平均值
+        try:
+            cnt = entry.get('count', 0) + 1
+            prev_avg = entry.get('avg_load')
+            if prev_avg is None:
+                new_avg = float(load_time)
+            else:
+                # 在线平均计算，权重均一
+                new_avg = prev_avg + (float(load_time) - prev_avg) / cnt
+            entry['count'] = cnt
+            entry['avg_load'] = new_avg
+        except Exception:
+            logger.debug('更新 CDN 统计时发生异常 for %s', hostname)
+
+        # 如果该 host 已被标注为国内，则可能影响最佳 host
+        if entry.get('is_china'):
+            self._best_china_host = self._get_best_china_host()
+        # 持久化更新
+        try:
+            self._save_cdn_entry(hostname)
+        except Exception:
+            logger.debug('持久化 CDN 统计时发生异常')
+
+    def _get_best_china_host(self) -> Optional[str]:
+        """返回缓存中平均加载时间最小的国内 CDN host（如果存在）。"""
+        best = None
+        best_time = None
+        for h, e in self._cdn_stats.items():
+            if not e:
+                continue
+            if not e.get('is_china'):
+                continue
+            avg = e.get('avg_load')
+            if avg is None:
+                continue
+            if best_time is None or avg < best_time:
+                best_time = avg
+                best = h
+        return best
 
     def _get_quality_name(self, quality_id: int) -> str:
         """

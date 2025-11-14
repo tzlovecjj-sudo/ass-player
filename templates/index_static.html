@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ASS字幕播放器 - 主播放页面</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/fullscreen.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+    <link rel="stylesheet" href="/static/css/main.css">
+    <link rel="stylesheet" href="/static/css/layout.css">
+    <link rel="stylesheet" href="/static/css/fullscreen.css">
+    <link rel="stylesheet" href="/static/css/components.css">
 </head>
 <body>
     <div class="container">
@@ -131,8 +131,8 @@
     <!-- 使用ES6模块化版本 -->
     <script>
         // 注入后端公开的运行时配置到前端
-        window.ASS_PLAYER_CONFIG = {{ ASS_PLAYER_CONFIG | tojson | safe }};
+        window.ASS_PLAYER_CONFIG = {"REPORT_TIMEOUT_MS": 3000};
     </script>
-    <script type="module" src="{{ url_for('static', filename='js/modules/main.js') }}"></script>
+    <script type="module" src="/static/js/modules/main.js"></script>
 </body>
 </html>

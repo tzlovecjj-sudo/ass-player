@@ -27,6 +27,14 @@ def main():
             url TEXT,
             ts REAL
         )""")
+        # 同步创建 CDN 统计表以便解析器持久化 cdn_stats（如果使用 run.py 注入连接）
+        cur.execute("""CREATE TABLE IF NOT EXISTS cdn_stats (
+            hostname TEXT PRIMARY KEY,
+            is_china INTEGER,
+            count INTEGER,
+            avg_load REAL,
+            updated_ts REAL
+        )""")
         conn.commit()
         logging.info('已初始化本地 SQLite 缓存：%s', db_path)
 

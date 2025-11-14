@@ -27,6 +27,8 @@ class Config:
     # 缓存配置
     CACHE_ENABLED = os.environ.get('ASS_CACHE_ENABLED', 'true').lower() == 'true'
     CACHE_TTL = int(os.environ.get('ASS_CACHE_TTL', '3600'))  # 1小时
+    # 前端上报超时阈值（毫秒），默认 3000ms（3秒）
+    REPORT_TIMEOUT_MS = int(os.environ.get('ASS_REPORT_TIMEOUT_MS', '3000'))
     
     # 日志配置
     LOG_LEVEL = os.environ.get('ASS_LOG_LEVEL', 'INFO')

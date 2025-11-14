@@ -40,6 +40,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 loadBtn.disabled = true; // 临时禁用按钮，避免用户快速连点
                 window.player.showStatus('正在解析视频链接...', 'info');
                 try {
+                    // 开始计时：从用户点击“加载/解析”按钮时计时，直到前端播放成功
+                    const parseStart = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
                     const resp = await fetch(`/api/auto-parse?url=${encodeURIComponent(url)}`);
                     const status = resp.status;
                     let data = {};
@@ -59,7 +61,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                     if (resp.ok && data && data.success && data.video_url) {
-                        window.player.fileHandler.loadOnlineVideoWithUrl(data.video_url, url);
+                        // 将解析开始时间传递给文件处理器（作为第四个参数），以便在播放成功时上报加载耗时
+                        window.player.fileHandler.loadOnlineVideoWithUrl(data.video_url, url, null, parseStart);
                     } else if (data && data.success) {
                         const dlUrl = data.download_url || data.video_url;
                         if (dlUrl) {

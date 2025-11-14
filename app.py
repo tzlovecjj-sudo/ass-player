@@ -12,6 +12,7 @@ from flask import Flask, render_template, send_from_directory, request, jsonify,
 
 # 从 ass_player 模块导入 Bilibili 解析器
 from ass_player.bilibili import BiliBiliParser
+from config import get_config
 
 # 配置日志记录器
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -31,7 +32,12 @@ _parser = BiliBiliParser()
 @app.route('/')
 def index():
     """渲染播放器主页面"""
-    return render_template('index.html')
+    cfg = get_config()
+    # 将需要的前端配置注入模板（只包含安全可公开的配置项）
+    public_cfg = {
+        'REPORT_TIMEOUT_MS': getattr(cfg, 'REPORT_TIMEOUT_MS', 3000),
+    }
+    return render_template('index.html', ASS_PLAYER_CONFIG=public_cfg)
 
 # 定义使用说明页面的路由
 @app.route('/instructions')
@@ -119,6 +125,50 @@ def auto_parse():
     except Exception as e:
         logger.exception('解析 URL 时发生错误')
         return jsonify({'success': False, 'error': f'解析失败: {str(e)}', 'message': '解析过程中出现错误'}), 500
+
+
+@app.route('/api/report-cdn', methods=['POST'])
+def report_cdn():
+    """前端上报 CDN 加载耗时（由前端测量并上报）。
+
+    接受 JSON: { hostname: str, load_ms: int, is_china?: bool }
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        hostname = data.get('hostname')
+        load_ms = data.get('load_ms')
+        is_china = data.get('is_china', None)
+
+        if not hostname or load_ms is None:
+            return jsonify({'success': False, 'error': 'invalid payload'}), 400
+
+        # 简单范围校验
+        try:
+            load_val = float(load_ms)
+        except Exception:
+            return jsonify({'success': False, 'error': 'load_ms must be numeric'}), 400
+        if load_val < 0 or load_val > 60000:
+            return jsonify({'success': False, 'error': 'load_ms out of range'}), 400
+
+        # 如果解析器存在，则更新其 CDN 缓存统计
+        try:
+            if hasattr(app, '_parser') and app._parser is not None:
+                if is_china is not None:
+                    try:
+                        app._parser.mark_cdn_hostname(hostname, bool(is_china))
+                    except Exception:
+                        logger.debug('标记 CDN 主机时发生异常')
+                try:
+                    app._parser.record_cdn_load(hostname, float(load_val))
+                except Exception:
+                    logger.debug('记录 CDN 加载耗时时发生异常')
+        except Exception:
+            logger.exception('在处理 CDN 上报时解析器调用失败')
+
+        return jsonify({'success': True}), 200
+    except Exception:
+        logger.exception('处理 /api/report-cdn 请求时发生异常')
+        return jsonify({'success': False, 'error': 'internal error'}), 500
 
 
 # 当该脚本作为主程序直接运行时，执行以下代码
