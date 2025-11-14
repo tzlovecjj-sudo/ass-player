@@ -57,6 +57,29 @@ def test_frontend_reports_cdn_on_playing():
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
 
+        # Override navigator.sendBeacon to use fetch so Playwright can intercept the request
+        page.add_init_script("""
+        () => {
+            try {
+                window._orig_sendBeacon = navigator.sendBeacon;
+            } catch (e) {}
+            navigator.sendBeacon = (url, data) => {
+                try {
+                    // If data is a Blob, read as text
+                    if (data && typeof data.arrayBuffer === 'function') {
+                        data.arrayBuffer().then(buf => {
+                            const body = new TextDecoder().decode(new Uint8Array(buf));
+                            fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, keepalive: true });
+                        }).catch(() => {});
+                    } else {
+                        fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: data, keepalive: true });
+                    }
+                } catch (e) {}
+                return true;
+            };
+        }
+        """)
+
         # Intercept auto-parse and return a mocked video URL and dispatch 'playing'
         def handle_auto_parse(route):
             body = json.dumps({"success": True, "video_url": "https://example.playing.net/video-192.mp4"})
