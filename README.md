@@ -1,5 +1,7 @@
 # ASS 字幕播放器（Python 本地服务版）
 
+当前版本：v1.2.0 — Release: https://github.com/tzlovecjj-sudo/ass-player/releases/tag/v1.2.0
+
 ## 🌐 在线演示地址
 
 [https://ass-player.zeabur.app](https://ass-player.zeabur.app)
@@ -123,3 +125,6 @@
 ## 联系
 - 项目仓库: https://github.com/tzlovecjj-sudo/ass-player
 - 作者: tzlovecjj-sudo
+
+## 关于 AI 协助
+本项目在开发过程中使用了 AI 辅助工具（例如代码补全与自动化脚本生成），部分文档与自动化脚本由 AI 协助编写。所有对远端仓库的写操作均遵循项目的本地优先工作流程——AI 代理在未获维护者明确授权时不会向远端提交或推送变更。若需查看由 AI 生成的补丁或变更记录，请查看提交历史与 `.github/copilot-instructions.md` 文档。
