@@ -180,6 +180,11 @@ def test_subtitle_canvas_basic_visibility():
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
+            try:
+                from .artifacts import register_page
+                register_page(page)
+            except Exception:
+                pass
 
             page_path = (
                 f'http://127.0.0.1:{port}/templates/index_static.html'
@@ -318,6 +323,11 @@ def test_subtitle_canvas_basic_visibility():
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=True)
             page = browser.new_page()
+            try:
+                from .artifacts import register_page
+                register_page(page)
+            except Exception:
+                pass
             page_path = f'http://127.0.0.1:{port}/templates/index_static.html'
             page.goto(page_path)
             page.wait_for_load_state('domcontentloaded')

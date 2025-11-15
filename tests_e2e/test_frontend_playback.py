@@ -53,6 +53,12 @@ def test_start_stop_rendering_sets_animationId():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
+        try:
+            # 注册 page 以便在失败时收集 artifact（截图/HTML/console）
+            from .artifacts import register_page
+            register_page(page)
+        except Exception:
+            pass
         page_path = f'http://127.0.0.1:{port}/templates/index_static.html' if os.path.exists(os.path.join(ROOT, 'templates', 'index_static.html')) else f'http://127.0.0.1:{port}/templates/index.html'
         page.goto(page_path)
         page.wait_for_function('() => window.player && window.player.startRendering && window.player.stopRendering')
@@ -87,6 +93,11 @@ def test_keyboard_shortcuts_trigger_controller_methods():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
+        try:
+            from .artifacts import register_page
+            register_page(page)
+        except Exception:
+            pass
         page_path = f'http://127.0.0.1:{port}/templates/index_static.html' if os.path.exists(os.path.join(ROOT, 'templates', 'index_static.html')) else f'http://127.0.0.1:{port}/templates/index.html'
         page.goto(page_path)
         page.wait_for_function('() => window.player && window.player.videoController')
@@ -130,6 +141,11 @@ def test_update_mute_button_reflects_video_state():
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
         page = browser.new_page()
+        try:
+            from .artifacts import register_page
+            register_page(page)
+        except Exception:
+            pass
         page_path = f'http://127.0.0.1:{port}/templates/index_static.html' if os.path.exists(os.path.join(ROOT, 'templates', 'index_static.html')) else f'http://127.0.0.1:{port}/templates/index.html'
         page.goto(page_path)
         page.wait_for_function('() => window.player && window.player.updateMuteButton')
