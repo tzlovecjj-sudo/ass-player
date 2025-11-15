@@ -85,8 +85,10 @@
 
 /* 浏览器全屏样式 */
 .browser-fullscreen-mode {
+    /* 进入浏览器全屏时清除 body 的默认内边距，确保页面顶部紧贴屏幕顶端 */
     background: #000 !important;
     overflow: hidden !important;
+    padding: 0 !important;
 }
 
 .browser-fullscreen-mode .container {
