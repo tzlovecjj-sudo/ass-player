@@ -133,30 +133,30 @@ export default class SubtitleRenderer {
             const value = parts[i];
             
             // 根据 Format 定义的键名，将值解析并存储到样式对象中
-            switch (key) {
-                case 'Name': style.name = value; break;
-                case 'Fontname': style.fontName = value; break;
-                case 'Fontsize': style.fontSize = parseFloat(value); break;
-                case 'PrimaryColour': style.primaryColor = this.parseASSColor(value); break;
-                case 'SecondaryColour': style.secondaryColor = this.parseASSColor(value); break;
-                case 'OutlineColour': style.outlineColor = this.parseASSColor(value); break;
-                case 'BackColour': style.backColor = this.parseASSColor(value); break;
-                case 'Bold': style.bold = parseInt(value) === -1; break;
-                case 'Italic': style.italic = parseInt(value) === -1; break;
-                case 'Underline': style.underline = parseInt(value) === -1; break;
-                case 'StrikeOut': style.strikeout = parseInt(value) === -1; break;
-                case 'ScaleX': style.scaleX = parseFloat(value); break;
-                case 'ScaleY': style.scaleY = parseFloat(value); break;
-                case 'Spacing': style.spacing = parseFloat(value); break;
-                case 'Angle': style.angle = parseFloat(value); break;
-                case 'BorderStyle': style.borderStyle = parseInt(value); break;
-                case 'Outline': style.outline = parseFloat(value); break;
-                case 'Shadow': style.shadow = parseFloat(value); break;
-                case 'Alignment': style.alignment = parseInt(value); break;
-                case 'MarginL': style.marginL = parseInt(value); break;
-                case 'MarginR': style.marginR = parseInt(value); break;
-                case 'MarginV': style.marginV = parseInt(value); break;
-                case 'Encoding': style.encoding = parseInt(value); break;
+                switch (key) {
+                case 'Name': style.name = value; break; // 名称
+                case 'Fontname': style.fontName = value; break; // 字体名称
+                case 'Fontsize': style.fontSize = parseFloat(value); break; // 字号
+                case 'PrimaryColour': style.primaryColor = this.parseASSColor(value); break; // 主色 (Primary)
+                case 'SecondaryColour': style.secondaryColor = this.parseASSColor(value); break; // 副色 (Secondary)
+                case 'OutlineColour': style.outlineColor = this.parseASSColor(value); break; // 描边/轮廓颜色
+                case 'BackColour': style.backColor = this.parseASSColor(value); break; // 背景色/盒子色 (Back)
+                case 'Bold': style.bold = parseInt(value) === -1; break; // 粗体（-1 表示开启）
+                case 'Italic': style.italic = parseInt(value) === -1; break; // 斜体（-1 表示开启）
+                case 'Underline': style.underline = parseInt(value) === -1; break; // 下划线（-1 开启）
+                case 'StrikeOut': style.strikeout = parseInt(value) === -1; break; // 删除线（-1 开启）
+                case 'ScaleX': style.scaleX = parseFloat(value); break; // X 轴缩放 (%)
+                case 'ScaleY': style.scaleY = parseFloat(value); break; // Y 轴缩放 (%)
+                case 'Spacing': style.spacing = parseFloat(value); break; // 字间距 (spacing)
+                case 'Angle': style.angle = parseFloat(value); break; // 旋转角度 (角度)
+                case 'BorderStyle': style.borderStyle = parseInt(value); break; // 边框样式 (1: 轮廓+阴影, 3: 实色框)
+                case 'Outline': style.outline = parseFloat(value); break; // 轮廓宽度 / 描边宽度
+                case 'Shadow': style.shadow = parseFloat(value); break; // 阴影偏移 (shadow)
+                case 'Alignment': style.alignment = parseInt(value); break; // 对齐方式 (1-9)
+                case 'MarginL': style.marginL = parseInt(value); break; // 左边距
+                case 'MarginR': style.marginR = parseInt(value); break; // 右边距
+                case 'MarginV': style.marginV = parseInt(value); break; // 垂直边距 (顶/底)
+                case 'Encoding': style.encoding = parseInt(value); break; // 字符编码
                 default:
                     // 对于未知的或不处理的字段，直接存储原始值
                     style[key.toLowerCase()] = value;
@@ -483,49 +483,200 @@ export default class SubtitleRenderer {
         // 6. 遍历每一行并绘制
         lines.forEach((lineSegments, lineIndex) => {
             const y = startY + (lineIndex * lineHeight); // 当前行的 Y 坐标
-            
-            // 计算该行的总宽度
+
+            // 计算样式的横/纵缩放比例 (ASS 中为百分比，例如 100 表示 100%)
+            const styleScaleX = (style.scaleX !== undefined ? style.scaleX : this.player.defaultStyle.scaleX || 100) / 100;
+            const styleScaleY = (style.scaleY !== undefined ? style.scaleY : this.player.defaultStyle.scaleY || 100) / 100;
+
+            // 计算该行的总宽度（考虑横向缩放和字间距）
             let lineWidth = 0;
+            const segWidths = [];
+            const spacingPx = (style.spacing || this.player.defaultStyle.spacing || 0) * scaleFactor; // 字间距像素值
             lineSegments.forEach(segment => {
-                lineWidth += this.player.measureTextWidth(segment.text);
+                const baseW = this.player.measureTextWidth(segment.text); // 基于当前 font 的测量
+                const adjW = baseW * styleScaleX + Math.max(0, (segment.text.length - 1)) * spacingPx;
+                segWidths.push({ baseW, adjW });
+                lineWidth += adjW;
             });
-            
+
             // 计算起始 X 坐标（水平居中）
             const startX = (this.player.videoCanvas.width - lineWidth) / 2;
-            
-            // 如果边框样式是 3 (不透明方框)，则绘制背景矩形
+
+            // 如果边框样式是 3 (不透明方框)，则绘制背景矩形（注意缩放）
             if (style.borderStyle === 3 && style.backColor) {
                 this.player.ctx.fillStyle = style.backColor;
-                // 绘制背景矩形，考虑描边宽度
                 const padding = (style.outline || this.player.defaultStyle.outline) * scaleFactor;
                 this.player.ctx.fillRect(
-                    startX - padding, 
-                    y - fontSize + padding, // 调整 Y 坐标以适应文本基线和字体大小
-                    lineWidth + padding * 2, 
+                    startX - padding,
+                    y - fontSize + padding,
+                    lineWidth + padding * 2,
                     lineHeight + padding * 2
                 );
             }
 
+            // 处理整行旋转角度（angle）: 仅在 angle 非 0 时进行计算与变换
+            const angleDeg = style.angle || 0;
+            const drawAtRotated = Math.abs(angleDeg) > 1e-6;
+            let angleRad = 0;
+            let canvasCenterX = 0;
+            if (drawAtRotated) {
+                angleRad = (angleDeg * Math.PI) / 180;
+                canvasCenterX = this.player.videoCanvas.width / 2;
+            }
+
             // 绘制该行的每个文本片段
             let currentX = startX;
-            
-            lineSegments.forEach(segment => {
-                const width = this.player.measureTextWidth(segment.text);
-                
-                // 绘制文字描边 (Outline)
+
+            for (let i = 0; i < lineSegments.length; i++) {
+                const segment = lineSegments[i];
+                const { baseW, adjW } = segWidths[i];
+
+                // 绘制文字相关样式
                 const outlineWidth = (style.outline || this.player.defaultStyle.outline) * scaleFactor;
-                if (outlineWidth > 0) {
-                    this.player.ctx.strokeStyle = style.outlineColor || this.player.defaultStyle.outlineColor;
-                    this.player.ctx.lineWidth = outlineWidth;
-                    this.player.ctx.strokeText(segment.text, currentX + width / 2, y);
+                const shadowOffset = (style.shadow || this.player.defaultStyle.shadow || 0) * scaleFactor;
+                const outlineColor = style.outlineColor || this.player.defaultStyle.outlineColor;
+                const backColor = style.backColor || this.player.defaultStyle.backColor;
+
+                // 是否需要应用横向/纵向缩放（ASS 默认 100 -> 无缩放）
+                const needScaleX = Math.abs(styleScaleX - 1) > 1e-6;
+                const needScaleY = Math.abs(styleScaleY - 1) > 1e-6;
+
+                // 计算用于绘制的字体高度（考虑纵向缩放，仅在需要时调整）
+                const effectiveFontSize = needScaleY ? fontSize * styleScaleY : fontSize;
+                // 更新 ctx.font 使用纵向缩放后的大小（保持字体族和样式）
+                const fontName = style.fontName || this.player.defaultStyle.fontName;
+                const bold = style.bold !== undefined ? style.bold : this.player.defaultStyle.bold;
+                const italic = style.italic !== undefined ? style.italic : this.player.defaultStyle.italic;
+                let fontStyle = '';
+                if (bold) fontStyle += 'bold ';
+                if (italic) fontStyle += 'italic ';
+                const fontFamily = `"${fontName}", "Microsoft YaHei", "微软雅黑", "PingFang SC", "Hiragino Sans GB", "Heiti SC", "WenQuanYi Micro Hei", sans-serif`;
+                this.player.ctx.font = `${fontStyle} ${effectiveFontSize}px ${fontFamily}`;
+
+                // 绘制时使用 transform 来实现横向缩放 (scaleX)。我们以片段中心为变换原点，先 translate -> scale -> draw
+                const pieceCenterX = currentX + adjW / 2;
+
+                // 处理旋转：我们会先把坐标系移动到 canvas 中心并旋转（以行中心旋转），再在该坐标系下绘制
+                // drawAtRotated 在外层已定义，复用
+
+                // 如果既不需要横向缩放也不旋转，则直接在画布坐标上绘制（更高效）
+                if (!needScaleX && !drawAtRotated) {
+                    // 直接绘制描边（如果有）
+                    if (outlineWidth > 0) {
+                        this.player.ctx.save();
+                        this.player.ctx.shadowColor = 'rgba(0,0,0,0)';
+                        this.player.ctx.lineWidth = outlineWidth;
+                        this.player.ctx.lineJoin = 'round';
+                        this.player.ctx.strokeStyle = outlineColor;
+                        this.player.ctx.textAlign = 'center';
+                        this.player.ctx.textBaseline = 'alphabetic';
+                        this.player.ctx.strokeText(segment.text, currentX + adjW / 2, y);
+                        this.player.ctx.restore();
+                    }
+
+                    // 填充与阴影
+                    this.player.ctx.save();
+                    if (shadowOffset > 0) {
+                        const shadowColor = backColor || 'rgba(0,0,0,0.6)';
+                        this.player.ctx.shadowColor = shadowColor;
+                        this.player.ctx.shadowOffsetX = shadowOffset;
+                        this.player.ctx.shadowOffsetY = shadowOffset;
+                        this.player.ctx.shadowBlur = Math.max(1, shadowOffset / 2);
+                    } else {
+                        this.player.ctx.shadowColor = 'rgba(0,0,0,0)';
+                    }
+                    this.player.ctx.fillStyle = segment.color;
+                    this.player.ctx.textAlign = 'center';
+                    this.player.ctx.textBaseline = 'alphabetic';
+                    this.player.ctx.fillText(segment.text, currentX + adjW / 2, y);
+                    this.player.ctx.restore();
+                } else {
+                    // 否则使用变换路径：支持横向缩放或旋转
+                    this.player.ctx.save();
+                    if (drawAtRotated) {
+                        this.player.ctx.translate(canvasCenterX, y);
+                        this.player.ctx.rotate(angleRad);
+                        this.player.ctx.translate(-canvasCenterX, -y);
+                    }
+                    // 移动到片段中心并横向缩放（仅在需要时缩放）
+                    this.player.ctx.translate(pieceCenterX, y);
+                    if (needScaleX) this.player.ctx.scale(styleScaleX, 1);
+
+                    if (shadowOffset > 0) {
+                        const shadowColor = backColor || 'rgba(0,0,0,0.6)';
+                        this.player.ctx.shadowColor = shadowColor;
+                        this.player.ctx.shadowOffsetX = shadowOffset / Math.max(styleScaleX, 0.0001);
+                        this.player.ctx.shadowOffsetY = shadowOffset;
+                        this.player.ctx.shadowBlur = Math.max(1, shadowOffset / 2);
+                    } else {
+                        this.player.ctx.shadowColor = 'rgba(0,0,0,0)';
+                    }
+
+                    this.player.ctx.fillStyle = segment.color;
+                    this.player.ctx.textAlign = 'center';
+                    this.player.ctx.textBaseline = 'alphabetic';
+                    this.player.ctx.fillText(segment.text, 0, 0);
+
+                    // 如果描边存在并未提前绘制（在变换路径下需要按此顺序绘制描边时），
+                    // 但为了保持与之前行为一致，我们仍然绘制描边为先（当前实现已在上方处理描边分支），
+                    // 因此此处不重复描边绘制。
+
+                    // 下划线 / 删除线处理同样在变换路径下绘制
+                    const hasUnderline = !!style.underline;
+                    const hasStrike = !!style.strikeout;
+                    if (hasUnderline || hasStrike) {
+                        const underlineY = Math.round(effectiveFontSize * 0.12);
+                        const strikeY = Math.round(-effectiveFontSize * 0.35);
+                        this.player.ctx.save();
+                        this.player.ctx.beginPath();
+                        const lineW = (adjW) / Math.max(styleScaleX, 0.0001);
+                        this.player.ctx.lineWidth = Math.max(1, Math.round(effectiveFontSize * 0.06));
+                        this.player.ctx.strokeStyle = segment.color;
+                        if (hasUnderline) {
+                            this.player.ctx.moveTo(-lineW / 2, underlineY);
+                            this.player.ctx.lineTo(lineW / 2, underlineY);
+                        }
+                        if (hasStrike) {
+                            this.player.ctx.moveTo(-lineW / 2, strikeY);
+                            this.player.ctx.lineTo(lineW / 2, strikeY);
+                        }
+                        this.player.ctx.stroke();
+                        this.player.ctx.restore();
+                    }
+
+                    this.player.ctx.restore();
                 }
-                
-                // 绘制文字主体
-                this.player.ctx.fillStyle = segment.color;
-                this.player.ctx.fillText(segment.text, currentX + width / 2, y);
-                
-                currentX += width; // 更新当前 X 坐标，用于下一个片段
-            });
+
+                // 下划线 / 删除线 (Underline / StrikeOut)
+                const hasUnderline = !!style.underline;
+                const hasStrike = !!style.strikeout;
+                if (hasUnderline || hasStrike) {
+                    // 计算线条位置：基于字体高度做经验偏移
+                    const underlineY = Math.round(effectiveFontSize * 0.12);
+                    const strikeY = Math.round(-effectiveFontSize * 0.35);
+                    this.player.ctx.save();
+                    // 在当前变换下绘制横线，宽度为 adjW / scaleX (因为被 scale 缩放了)
+                    this.player.ctx.beginPath();
+                    const lineW = (adjW) / Math.max(styleScaleX, 0.0001);
+                    this.player.ctx.lineWidth = Math.max(1, Math.round(effectiveFontSize * 0.06));
+                    this.player.ctx.strokeStyle = segment.color;
+                    if (hasUnderline) {
+                        this.player.ctx.moveTo(-lineW / 2, underlineY);
+                        this.player.ctx.lineTo(lineW / 2, underlineY);
+                    }
+                    if (hasStrike) {
+                        this.player.ctx.moveTo(-lineW / 2, strikeY);
+                        this.player.ctx.lineTo(lineW / 2, strikeY);
+                    }
+                    this.player.ctx.stroke();
+                    this.player.ctx.restore();
+                }
+
+                this.player.ctx.restore();
+
+                // 更新 currentX（注意 currentX 是未缩放空间下的增量）
+                currentX += adjW;
+            }
         });
     }
 

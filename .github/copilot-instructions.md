@@ -23,6 +23,12 @@
 - 解析流程避免去读取远端 `Content-Length` 或额外发起阻塞请求（代码有意不去获取远端大小）。
 - `run.py` 与 `start.py` 的 SQLite 注入契约（`_disk_cache_conn`、`_owns_disk_conn`）是向后兼容点：启用持久化缓存时优先复用该模式。
 
+## 注释与语言约定（强制）
+
+- 所有新添加或修改的代码和测试文件中，注释必须使用中文（简体）。这包括函数/方法注释、复杂逻辑处的行内注释、以及测试用例中的说明。
+- 当 AI 代理或开发者生成/修改代码时，请确保注释清晰、简洁，说明输入/输出、边界条件和重要实现决策。尽量避免使用英文注释或混杂语言。
+- 文档（README、部署或设计说明）可以使用中文或英文，但代码内注释请优先使用中文以便本项目维护者阅读与审查。
+
 ## 测试与调试技巧（即用示例）
 - 运行测试：在虚拟环境内执行 `python run_tests.py` 或 `pytest tests/`。
 - Mock 示例：
@@ -54,6 +60,11 @@ python run.py
 ```
 - 覆盖监听：环境变量 `ASS_PLAYER_HOST`, `ASS_PLAYER_PORT` 或 `PORT`（`run.py` / `app.py` 会读取）。默认端口为 `8080`。
 
+- 团队约定（开发模式优先）：
+  - 在日常开发以及与 AI（例如 Copilot）交互、进行手动调试时，始终使用开发模式启动服务（`python start.py`）。这一约定的原因是开发模式支持自动打开浏览器、静态文件即时生效且更方便调试前端渲染行为。
+  - 仅在需要做生产部署、容器化、或需要持久化 SQLite 注入时才使用 `python run.py`。
+  - 开发模式下仍然建议在项目虚拟环境中运行（见“关于虚拟环境”一节），以保证依赖与测试行为一致。
+
 ## CDN 统计持久化与上报（实现说明）
 - 当使用 `run.py` 启动服务时，脚本会创建并注入一个 SQLite 连接到解析器，并确保两个本地表被创建：
   - `cache`（兼容旧的缓存契约）
@@ -64,6 +75,77 @@ python run.py
 - 后端的 `/api/report-cdn` 路由会校验负载并调用解析器的 `mark_cdn_hostname(hostname, is_china)` 与 `record_cdn_load(hostname, load_ms)` 方法，解析器会把统计持久化到 `cdn_stats` 表（如果 `run.py` 已注入 SQLite 连接）。
 - 因为 CDN 统计由前端提供并由后端持久化，重启或部署新版本后，历史统计仍会保留并用于决定替换为哪一个国内 CDN（`_best_china_host`）。
 
+
+## 关于虚拟环境（AI 代理与开发者必读）
+
+- 在运行测试或安装依赖前，应优先激活并使用项目的 Python 虚拟环境（virtualenv / venv / conda 等）。许多开发者会把 Playwright、pytest 等测试依赖安装到虚拟环境中；在未激活虚拟环境的情况下直接运行 `pytest` 可能导致依赖被错误地判断为“未安装”。
+
+- 推荐流程（PowerShell 例子）：
+  1. 激活虚拟环境（假定位于项目根的 `.venv` 或 `venv`）：
+    ```powershell
+    .\.venv\Scripts\Activate.ps1
+    # 或者
+    .\venv\Scripts\Activate.ps1
+    ```
+  2. 确认 Python 可执行路径与 pip 指向已激活的虚拟环境：
+    ```powershell
+    python -c "import sys; print(sys.executable)"
+    python -m pip --version
+    ```
+  3. 使用相同的 `python` 来安装依赖与运行测试：
+    ```powershell
+    python -m pip install -r requirements.txt
+    python -m pip install playwright
+    python -m playwright install chromium
+    pytest -q
+    ```
+
+- AI 代理约定：当需要在仓库中运行 Python 命令或检查依赖时，应按以下顺序优先使用虚拟环境：
+  1. 检查环境变量 `VIRTUAL_ENV`，若存在且指向项目内的 venv，则使用该 Python。
+ 2. 查找常见虚拟环境目录（`.venv`, `venv`, `env`），若存在则使用其中的 Python 可执行路径。
+ 3. 若都不存在，则使用系统 Python，但在输出中明确提醒用户“未检测到虚拟环境，使用系统 Python（可能导致依赖不匹配）”。
+
+将上述说明写入 AI 指南，有助于避免因环境差异导致的测试跳过或依赖检测失败。
+
+## 当前虚拟环境已安装的依赖（.venv 快照）
+
+下面是当前仓库 `.venv` 中通过 `pip freeze` 列出的包（用于复现运行环境或迁移依赖）。在更新依赖后请同步 `requirements.txt` 或记录在 CI 镜像中。
+
+```
+beautifulsoup4==4.12.2
+blinker==1.9.0
+certifi==2025.11.12
+charset-normalizer==3.4.4
+click==8.3.0
+colorama==0.4.6
+coverage==7.11.3
+Flask==2.3.3
+flask-cors==6.0.1
+greenlet==3.2.4
+idna==3.11
+iniconfig==2.3.0
+itsdangerous==2.2.0
+Jinja2==3.1.6
+lxml==4.9.3
+MarkupSafe==3.0.3
+packaging==25.0
+playwright==1.56.0
+pluggy==1.6.0
+pyee==13.0.0
+pytest==7.4.0
+pytest-cov==4.1.0
+requests==2.31.0
+requests-mock==1.11.0
+six==1.17.0
+soupsieve==2.8
+typing_extensions==4.15.0
+urllib3==2.5.0
+Werkzeug==3.1.3
+```
+
+说明：
+- `playwright` 已安装，但浏览器二进制需另行通过 `python -m playwright install chromium` 安装（见上文指南）。
+- 如果你准备在 CI 中运行 E2E 测试，建议在 CI 镜像中预装这些包并执行对应的 playwright 浏览器安装步骤，以避免运行时下载。
 
 ## PR 检查清单（AI 代理提交 PR 前应验证）
 - 修改解析器：同时更新或新增 `tests/test_bilibili_parser.py` 的用例。

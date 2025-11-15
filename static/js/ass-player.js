@@ -339,7 +339,19 @@ export default class EmbeddedASSPlayer {
                 break;
             case 'ArrowRight': // 右箭头：快进 5 秒
                 e.preventDefault();
-                this.videoController.seekTo(Math.min(this.videoPlayer.duration, this.videoPlayer.currentTime + 5));
+                // 注意：video.duration 在某些测试/加载阶段可能为 undefined/NaN，
+                // 直接传入 Math.min(undefined, x) 会导致结果为 NaN。这里先计算目标时间，
+                // 只有在 duration 为合法数字时才做上界裁剪。
+                {
+                    const step = 5;
+                    const current = this.videoPlayer.currentTime || 0;
+                    let target = current + step;
+                    const dur = this.videoPlayer.duration;
+                    if (typeof dur === 'number' && !isNaN(dur) && isFinite(dur)) {
+                        target = Math.min(dur, target);
+                    }
+                    this.videoController.seekTo(target);
+                }
                 break;
         }
     }
