@@ -23,8 +23,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // 我们允许 127.x, localhost, 0.0.0.0 和 IPv6 回环 ::1 自动加载示例。
     const host = (location.hostname || '').toLowerCase();
     let isLocal = host === 'localhost' || host === '0.0.0.0' || host === '::1' || host.startsWith('127.');
+        // 使用后端注入的运行时配置作为默认值（若未注入则使用内置回退）
+        const defaultDemoUrl = (window.ASS_PLAYER_CONFIG && window.ASS_PLAYER_CONFIG.DEFAULT_VIDEO_URL) || 'https://www.bilibili.com/video/BV1NmyXBTEGD';
         if (urlInput && !urlInput.value) {
-            urlInput.value = 'https://www.bilibili.com/video/BV1NmyXBTEGD';
+            urlInput.value = defaultDemoUrl;
         }
 
         // 加载按钮处理（注意：客户端不再实施时间窗口限流，仅在一次点击期间禁用按钮以避免 UI 闪烁）
@@ -87,10 +89,10 @@ document.addEventListener('DOMContentLoaded', function() {
         // 下载按钮已移除：不再提供单独的下载按钮，下载提示将仅在加载成功时显示
 
     // --- 在线 Demo：默认加载示例字幕与对应 B 站视频（页面进入即自动加载与播放） ---
-    // 无论是否本地或绑定域名，进入页面都尝试自动加载示例视频与字幕
-    if (true) {
-            const demoBiliUrl = 'https://www.bilibili.com/video/BV1NmyXBTEGD';
-            const demoAssName = '2 Minecraft Pros VS 1000 Players.ass';
+    // 自动加载示例行为现在由后端配置控制（window.ASS_PLAYER_CONFIG.AUTO_PLAY_DEMO）
+    if (window.ASS_PLAYER_CONFIG && window.ASS_PLAYER_CONFIG.AUTO_PLAY_DEMO) {
+        const demoBiliUrl = (window.ASS_PLAYER_CONFIG && window.ASS_PLAYER_CONFIG.DEFAULT_VIDEO_URL) || defaultDemoUrl;
+            const demoAssName = (window.ASS_PLAYER_CONFIG && window.ASS_PLAYER_CONFIG.DEFAULT_ASS_NAME) || '2 Minecraft Pros VS 1000 Players.ass';
             const demoAssPath = '/ass_files/' + encodeURIComponent(demoAssName);
             let demoVideoLoaded = false;
             let demoSubtitleLoaded = false;

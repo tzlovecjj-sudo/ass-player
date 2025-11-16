@@ -33,6 +33,14 @@ class Config:
     # 日志配置
     LOG_LEVEL = os.environ.get('ASS_LOG_LEVEL', 'INFO')
     
+    # --- 在线示例相关配置（可通过环境变量覆盖） ---
+    # 默认示例视频 URL（用于页面示例或自动填充在线 URL 输入框）
+    DEFAULT_VIDEO_URL = os.environ.get('ASS_DEFAULT_VIDEO_URL', 'https://www.bilibili.com/video/BV1AyCQB4EjC')
+    # 是否在页面加载时自动加载并尝试播放示例视频（布尔，默认启用）
+    AUTO_PLAY_DEMO = os.environ.get('ASS_AUTO_PLAY_DEMO', 'true').lower() == 'true'
+    # 默认示例字幕文件名（位于 /ass_files/ 下），可通过 ASS_DEFAULT_ASS_NAME 覆盖
+    DEFAULT_ASS_NAME = os.environ.get('ASS_DEFAULT_ASS_NAME', '2 Minecraft Pros VS 1000 Players.ass')
+    
     @classmethod
     def to_dict(cls) -> Dict[str, Any]:
         """转换为字典格式"""

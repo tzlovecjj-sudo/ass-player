@@ -36,6 +36,11 @@ def index():
     # 将需要的前端配置注入模板（只包含安全可公开的配置项）
     public_cfg = {
         'REPORT_TIMEOUT_MS': getattr(cfg, 'REPORT_TIMEOUT_MS', 3000),
+        # 注入默认示例视频地址与是否自动播放开关，前端可使用 window.ASS_PLAYER_CONFIG 读取
+        'DEFAULT_VIDEO_URL': getattr(cfg, 'DEFAULT_VIDEO_URL', 'https://www.bilibili.com/video/BV1NmyXBTEGD'),
+        'AUTO_PLAY_DEMO': getattr(cfg, 'AUTO_PLAY_DEMO', True),
+        # 注入默认示例字幕名（位于 /ass_files/ 下）
+        'DEFAULT_ASS_NAME': getattr(cfg, 'DEFAULT_ASS_NAME', '2 Minecraft Pros VS 1000 Players.ass'),
     }
     return render_template('index.html', ASS_PLAYER_CONFIG=public_cfg)
 
