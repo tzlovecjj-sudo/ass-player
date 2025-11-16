@@ -330,24 +330,102 @@ export default class SubtitleRenderer {
      */
     renderVideoWithSubtitles() {
         // 1. 清除 Canvas 上的所有内容，为新帧做准备
-        this.player.ctx.clearRect(0, 0, this.player.videoCanvas.width, this.player.videoCanvas.height);
+        // 注意：如果在 setupCanvas 中使用了 DPR 缩放（ctx 已被 setTransform），
+        // 这里需要使用逻辑 (CSS) 像素宽度/高度 来清除与绘制。
+        const dpr = this.player.dpr || 1;
+        const logicalW = this.player.logicalCanvasWidth || (this.player.videoCanvas.width / dpr);
+        const logicalH = this.player.logicalCanvasHeight || (this.player.videoCanvas.height / dpr);
+        this.player.ctx.clearRect(0, 0, logicalW, logicalH);
         
         // 2. 绘制当前视频帧到 Canvas 上
         // readyState >= 2 表示视频数据已足够播放
         if (this.player.videoPlayer.readyState >= 2) {
-            this.player.ctx.drawImage(this.player.videoPlayer, 0, 0, this.player.videoCanvas.width, this.player.videoCanvas.height);
+            // 使用逻辑像素尺寸绘制视频帧（ctx 已缩放到逻辑坐标系）
+            this.player.ctx.drawImage(this.player.videoPlayer, 0, 0, logicalW, logicalH);
         }
         
         // 3. 获取当前时间点应该显示的字幕
         const currentTime = this.player.videoPlayer.currentTime || 0;
-        const currentSubtitles = [];
-        
+        let currentSubtitles = [];
+
         // 遍历所有字幕，找出在当前时间范围内（start <= currentTime <= end）的字幕
         for (let i = 0; i < this.player.subtitles.length; i++) {
             const subtitle = this.player.subtitles[i];
-            if (currentTime >= subtitle.start && currentTime <= subtitle.end) {
-                currentSubtitles.push(subtitle);
+            if (!(currentTime >= subtitle.start && currentTime <= subtitle.end)) continue;
+            currentSubtitles.push(subtitle);
+        }
+
+        // 读取前端注入的偏好设置（优先 player.subtitleLanguagePreference，其次是 window.ASS_PLAYER_CONFIG.PREFERRED_SUBTITLE）
+        const cfgPref = (typeof window !== 'undefined' && window.ASS_PLAYER_CONFIG && window.ASS_PLAYER_CONFIG.PREFERRED_SUBTITLE) ? window.ASS_PLAYER_CONFIG.PREFERRED_SUBTITLE : null;
+        const pref = this.player.subtitleLanguagePreference || cfgPref || 'both';
+
+        // 简单去重策略：对当前时间的字幕按时间重叠分组，并在每组中依据语言偏好选择一条，减少中英重叠的情况
+        const overlapRatio = (a, b) => {
+            const istart = Math.max(a.start, b.start);
+            const iend = Math.min(a.end, b.end);
+            if (iend <= istart) return 0;
+            const inter = iend - istart;
+            const len = Math.min(a.end - a.start, b.end - b.start);
+            return inter / Math.max(len, 1e-6);
+        };
+
+        const isMostlyCJK = (text) => {
+            if (!text) return false;
+            const total = text.length;
+            let cjk = 0;
+            for (let ch of text) {
+                if (/[\u4e00-\u9fff]/.test(ch)) cjk++;
             }
+            return (cjk / Math.max(total, 1)) >= 0.25; // 若 >=25% 为 CJK 则认为以中文为主
+        };
+
+        const dedupeByOverlap = (subs, pref) => {
+            if (!subs || subs.length <= 1) return subs;
+            const used = new Array(subs.length).fill(false);
+            const out = [];
+            for (let i = 0; i < subs.length; i++) {
+                if (used[i]) continue;
+                const group = [subs[i]];
+                used[i] = true;
+                for (let j = i + 1; j < subs.length; j++) {
+                    if (used[j]) continue;
+                    if (overlapRatio(subs[i], subs[j]) > 0.5 || overlapRatio(subs[j], subs[i]) > 0.5) {
+                        group.push(subs[j]);
+                        used[j] = true;
+                    }
+                }
+
+                if (group.length === 1) {
+                    out.push(group[0]);
+                    continue;
+                }
+
+                // 多条重叠：根据偏好选择一个
+                if (pref === 'both') {
+                    // 保留所有（默认行为）
+                    out.push(...group);
+                } else if (pref === 'zh') {
+                    // 选择 CJK 比例最高的字幕
+                    group.sort((a, b) => (isMostlyCJK(b.text) ? 1 : 0) - (isMostlyCJK(a.text) ? 1 : 0));
+                    // 找到首个以中文为主的，否则选择最长的一条
+                    const picked = group.find(s => isMostlyCJK(s.text)) || group.reduce((p, c) => (c.text.length > p.text.length ? c : p), group[0]);
+                    out.push(picked);
+                } else if (pref === 'en') {
+                    // 选择非 CJK（英文/ASCII）为主的行；若都为 CJK 则保留最长
+                    const picked = group.find(s => !isMostlyCJK(s.text)) || group.reduce((p, c) => (c.text.length > p.text.length ? c : p), group[0]);
+                    out.push(picked);
+                } else {
+                    out.push(...group);
+                }
+            }
+            return out;
+        };
+
+        // 执行去重并替换 currentSubtitles
+        try {
+            currentSubtitles = dedupeByOverlap(currentSubtitles, pref);
+        } catch (e) {
+            console.debug('字幕去重过程出现异常，回退到不去重的列表。', e);
         }
         
         // 4. 绘制所有当前字幕并更新预览
@@ -382,13 +460,28 @@ export default class SubtitleRenderer {
         // 1. 获取并合并字幕样式：优先使用指定样式，否则使用默认样式
         const style = { ...this.player.defaultStyle, ...this.player.styles[styleName] };
         
-        // 2. 计算 Canvas 到 ASS 原始分辨率的缩放比例
-        const scaleFactorX = this.player.videoCanvas.width / this.player.playResX;
-        const scaleFactorY = this.player.videoCanvas.height / this.player.playResY;
-        const scaleFactor = Math.min(scaleFactorX, scaleFactorY); // 使用较小的缩放因子以保持内容可见
-        
-        // 3. 设置 Canvas 绘图上下文的字体样式
-        const fontSize = Math.max((style.fontSize || this.player.defaultStyle.fontSize) * scaleFactor, 12); // 最小字体大小为 12px
+    // 2. 计算 Canvas 到 ASS 原始分辨率的水平/垂直缩放比例
+    // 注意：字体按垂直比例缩放（更接近视觉感受），而换行宽度/水平间距按水平比例缩放
+        // 计算水平/垂直缩放因子：基于逻辑（CSS）像素尺寸与 ASS 的 PlayRes
+        const canvasLogicalWidth = this.player.logicalCanvasWidth || (this.player.videoCanvas.width / (this.player.dpr || 1));
+        const canvasLogicalHeight = this.player.logicalCanvasHeight || (this.player.videoCanvas.height / (this.player.dpr || 1));
+        const scaleX = canvasLogicalWidth / this.player.playResX;
+        const scaleY = canvasLogicalHeight / this.player.playResY;
+
+    // 3. 设置 Canvas 绘图上下文的字体样式
+    // 字体大小使用垂直缩放（PlayResY -> 视频高度），避免单一 min 导致字体过大
+    const baseFontSize = (style.fontSize || this.player.defaultStyle.fontSize);
+    // 考虑用户手动缩放系数（player.fontScale），使得用户可以在运行时放大/缩小字幕
+    const fontScale = (this.player.fontScale !== undefined && this.player.fontScale !== null) ? this.player.fontScale : 1.0;
+    const fontSize = Math.max(baseFontSize * scaleY * fontScale, 8); // 最小字体大小 8px（保证在小画面上仍可读）
+    // 调试输出：打印用于计算的基准字号与缩放因子，便于在浏览器控制台查看
+    try {
+        if (typeof console !== 'undefined' && console.debug) {
+            console.debug(`[SubtitleRenderer] style='${styleName}', baseFontSize=${baseFontSize}, scaleX=${scaleX.toFixed(3)}, scaleY=${scaleY.toFixed(3)}, computedFontSize=${fontSize.toFixed(2)}`);
+        }
+    } catch (e) {
+        // 忽略任何调试打印错误
+    }
         const fontName = style.fontName || this.player.defaultStyle.fontName;
         const bold = style.bold !== undefined ? style.bold : this.player.defaultStyle.bold;
         const italic = style.italic !== undefined ? style.italic : this.player.defaultStyle.italic;
@@ -408,66 +501,113 @@ export default class SubtitleRenderer {
         // 默认颜色使用样式中的 primaryColor
         const defaultColor = style.primaryColor || this.player.defaultStyle.primaryColor;
         
-        // 4. 计算字幕的垂直起始位置 (baseY)
-        let baseY;
-        // 垂直边距也需要根据缩放因子调整
-        const marginV = (style.marginV || this.player.defaultStyle.marginV) * scaleFactor;
+    // 4. 计算字幕的垂直起始位置 (baseY)
+    let baseY;
+    // 垂直边距按垂直缩放调整（fontSize 使用了 scaleY，因此垂直相关也应使用 scaleY）
+    const marginV = (style.marginV || this.player.defaultStyle.marginV) * scaleY;
+    
+    // 使用逻辑（CSS）像素高度来计算垂直位置，保持与其它计算一致
+    // （canvasLogicalHeight 已在函数顶部计算并存在）
+    const alignment = style.alignment || this.player.defaultStyle.alignment;
+    switch (alignment) {
+        case 1: case 4: case 7: // 底部对齐 (左下、中下、右下)
+        case 2: case 3: // 底部对齐 (中下、右下，与 1,4,7 类似，但通常 2,3 是指中下和右下)
+            baseY = canvasLogicalHeight - marginV;
+            break;
+        case 5: case 6: // 垂直居中 (左中、右中)
+            baseY = canvasLogicalHeight / 2;
+            break;
+        case 8: case 9: // 顶部对齐 (左上、中上、右上)
+            baseY = marginV + fontSize; // 顶部边距 + 字体大小
+            break;
+        default: // 默认底部对齐
+            baseY = canvasLogicalHeight - marginV;
+            break;
+    }
         
-        const alignment = style.alignment || this.player.defaultStyle.alignment;
-        
-        switch (alignment) {
-            case 1: case 4: case 7: // 底部对齐 (左下、中下、右下)
-            case 2: case 3: // 底部对齐 (中下、右下，与 1,4,7 类似，但通常 2,3 是指中下和右下)
-                baseY = this.player.videoCanvas.height - marginV;
-                break;
-            case 5: case 6: // 垂直居中 (左中、右中)
-                baseY = this.player.videoCanvas.height / 2;
-                break;
-            case 8: case 9: // 顶部对齐 (左上、中上、右上)
-                baseY = marginV + fontSize; // 顶部边距 + 字体大小
-                break;
-            default: // 默认底部对齐
-                baseY = this.player.videoCanvas.height - marginV;
-                break;
-        }
-        
-        // 5. 绘制处理了颜色标签和自动换行的文本
-        this.drawTextWithColorTagsAndWrap(text, baseY, fontSize, style, defaultColor, scaleFactor);
+    // 5. 绘制处理了颜色标签和自动换行的文本
+    // 将 styleName 及水平/垂直缩放传递给换行绘制函数，以便根据缩放分别处理横向宽度和纵向字体
+    this.drawTextWithColorTagsAndWrap(text, baseY, fontSize, style, defaultColor, scaleX, scaleY, styleName);
     }
 
     /**
      * 绘制带有颜色标签和自动换行功能的文本。
      * @param {string} text - 包含 ASS 颜色标签的原始文本
      * @param {number} baseY - 字幕的垂直基线 Y 坐标
-     * @param {number} fontSize - 字体大小
+     * @param {number} fontSize - 字体大小（已按垂直缩放 scaleY 处理）
      * @param {Object} style - 当前字幕的样式对象
      * @param {string} defaultColor - 默认的文本颜色 (CSS 格式)
-     * @param {number} scaleFactor - 缩放因子
+     * @param {number} scaleX - 水平缩放因子（用于宽度、边距、字间距）
+     * @param {number} scaleY - 垂直缩放因子（用于字体大小、描边、阴影、垂直边距）
      */
-    drawTextWithColorTagsAndWrap(text, baseY, fontSize, style, defaultColor, scaleFactor) {
+    drawTextWithColorTagsAndWrap(text, baseY, fontSize, style, defaultColor, scaleX, scaleY, styleName = 'Default') {
         // 1. 解析文本中的颜色标签，将文本分割成不同颜色的片段
         const segments = this.parseColorSegments(text, defaultColor);
         
         // 2. 计算可用的文本绘制宽度
-        const marginL = (style.marginL || this.player.defaultStyle.marginL) * scaleFactor;
-        const marginR = (style.marginR || this.player.defaultStyle.marginR) * scaleFactor;
-        const maxWidth = this.player.videoCanvas.width - marginL - marginR;
+        // 使用逻辑（CSS）像素尺寸来计算宽度，以保持与 setupCanvas 中的变换一致
+        const canvasLogicalWidth = this.player.logicalCanvasWidth || (this.player.videoCanvas.width / (this.player.dpr || 1));
+        const canvasLogicalHeight = this.player.logicalCanvasHeight || (this.player.videoCanvas.height / (this.player.dpr || 1));
+        // 左右边距按水平缩放，垂直边距在外层已按垂直缩放处理
+        const marginL = (style.marginL || this.player.defaultStyle.marginL) * scaleX;
+        const marginR = (style.marginR || this.player.defaultStyle.marginR) * scaleX;
+        const maxWidth = canvasLogicalWidth - marginL - marginR;
+
+        // 在换行和测量之前，确保 ctx.font 已设置为最终用于测量/绘制的字体，
+        // 并清空文本度量缓存以避免使用旧的 font 缓存结果。
+        try {
+            const fontName = style.fontName || this.player.defaultStyle.fontName;
+            const bold = style.bold !== undefined ? style.bold : this.player.defaultStyle.bold;
+            const italic = style.italic !== undefined ? style.italic : this.player.defaultStyle.italic;
+            let fontStyle = '';
+            if (bold) fontStyle += 'bold ';
+            if (italic) fontStyle += 'italic ';
+            const fontFamily = `"${fontName}", "Microsoft YaHei", "微软雅黑", "PingFang SC", "Hiragino Sans GB", "Heiti SC", "WenQuanYi Micro Hei", sans-serif`;
+            // 将 ctx.font 设置为传入的 fontSize（这是 drawSubtitle 计算得到的最终字体大小）
+            this.player.ctx.font = `${fontStyle} ${fontSize}px ${fontFamily}`;
+            // 清空测量缓存，确保 measureText 使用新的 ctx.font
+            if (this.player.textMetricsCache && typeof this.player.textMetricsCache.clear === 'function') {
+                this.player.textMetricsCache.clear();
+            }
+        } catch (e) {
+            // 忽略任何调试/清缓存错误
+        }
         
-        // 3. 对文本片段进行自动换行处理
-        const lines = this.wrapText(segments, maxWidth, fontSize);
+        // 构建用于显式测量的 font 字符串，并传递给 wrapText 以确保 measureText 使用相同的字体设置
+        const fontNameForMeasure = style.fontName || this.player.defaultStyle.fontName;
+        const fontFamilyForMeasure = `"${fontNameForMeasure}", "Microsoft YaHei", "微软雅黑", "PingFang SC", "Hiragino Sans GB", "Heiti SC", "WenQuanYi Micro Hei", sans-serif`;
+        const boldForMeasure = style.bold !== undefined ? style.bold : this.player.defaultStyle.bold;
+        const italicForMeasure = style.italic !== undefined ? style.italic : this.player.defaultStyle.italic;
+        let fontStyleForMeasure = '';
+        if (boldForMeasure) fontStyleForMeasure += 'bold ';
+        if (italicForMeasure) fontStyleForMeasure += 'italic ';
+        const fontStringForMeasure = `${fontStyleForMeasure} ${fontSize}px ${fontFamilyForMeasure}`;
+
+        // 3. 对文本片段进行自动换行处理（显式传入 fontString 以保证测量一致）
+        const lines = this.wrapText(segments, maxWidth, fontSize, fontStringForMeasure);
         
         // 4. 计算总高度和每行行高
-        const lineHeight = fontSize * 1.2; // 行高通常是字体大小的 1.2 倍
+    // 行高基于字体大小（fontSize 已按垂直缩放），这里使用 1.2 的倍数作为默认行高
+    const lineHeight = fontSize * 1.2;
         const totalHeight = lines.length * lineHeight;
         
         // 5. 根据对齐方式 (alignment) 调整文本的起始 Y 坐标
         const alignment = style.alignment || this.player.defaultStyle.alignment;
         let startY;
-        
+        // 针对中文样式，我们希望换行方向向下（首行放在基线，后续行向下堆叠），
+        // 以避免与位于基线之上的英文字幕重叠。通过样式名判断是否为中文样式。
+        const isChineseStyleName = /[\u4e00-\u9fff]|中文|中文字幕|中文大字幕|中文小字幕/.test(styleName);
+
         switch (alignment) {
             case 1: case 4: case 7: // 底部对齐
             case 2: case 3:
-                startY = baseY - totalHeight + lineHeight;
+                if (isChineseStyleName) {
+                    // 中文样式：向下换行，第一行在 baseY，后续行向下
+                    startY = baseY;
+                } else {
+                    // 默认 ASS 行为：最后一行贴基线，前置行向上
+                    startY = baseY - totalHeight + lineHeight;
+                }
                 break;
             case 5: case 6: // 垂直居中
                 startY = baseY - (totalHeight / 2) + (lineHeight / 2);
@@ -491,21 +631,24 @@ export default class SubtitleRenderer {
             // 计算该行的总宽度（考虑横向缩放和字间距）
             let lineWidth = 0;
             const segWidths = [];
-            const spacingPx = (style.spacing || this.player.defaultStyle.spacing || 0) * scaleFactor; // 字间距像素值
+            // 字间距按水平缩放（横向单位），因为它影响文本宽度计算
+            const spacingPx = (style.spacing || this.player.defaultStyle.spacing || 0) * scaleX; // 字间距像素值
             lineSegments.forEach(segment => {
-                const baseW = this.player.measureTextWidth(segment.text); // 基于当前 font 的测量
+                // 使用与换行时相同的 fontString 进行测量，确保绘制宽度与换行计算一致
+                const baseW = this.player.measureTextWidth(segment.text, fontStringForMeasure); // 基于换行时使用的 font 测量
                 const adjW = baseW * styleScaleX + Math.max(0, (segment.text.length - 1)) * spacingPx;
                 segWidths.push({ baseW, adjW });
                 lineWidth += adjW;
             });
 
             // 计算起始 X 坐标（水平居中）
-            const startX = (this.player.videoCanvas.width - lineWidth) / 2;
+            const startX = (canvasLogicalWidth - lineWidth) / 2;
 
             // 如果边框样式是 3 (不透明方框)，则绘制背景矩形（注意缩放）
             if (style.borderStyle === 3 && style.backColor) {
                 this.player.ctx.fillStyle = style.backColor;
-                const padding = (style.outline || this.player.defaultStyle.outline) * scaleFactor;
+                // 背景填充的 padding 与描边宽度相关，应使用垂直缩放 scaleY
+                const padding = (style.outline || this.player.defaultStyle.outline) * scaleY;
                 this.player.ctx.fillRect(
                     startX - padding,
                     y - fontSize + padding,
@@ -519,10 +662,10 @@ export default class SubtitleRenderer {
             const drawAtRotated = Math.abs(angleDeg) > 1e-6;
             let angleRad = 0;
             let canvasCenterX = 0;
-            if (drawAtRotated) {
-                angleRad = (angleDeg * Math.PI) / 180;
-                canvasCenterX = this.player.videoCanvas.width / 2;
-            }
+                if (drawAtRotated) {
+                    angleRad = (angleDeg * Math.PI) / 180;
+                    canvasCenterX = canvasLogicalWidth / 2;
+                }
 
             // 绘制该行的每个文本片段
             let currentX = startX;
@@ -532,8 +675,9 @@ export default class SubtitleRenderer {
                 const { baseW, adjW } = segWidths[i];
 
                 // 绘制文字相关样式
-                const outlineWidth = (style.outline || this.player.defaultStyle.outline) * scaleFactor;
-                const shadowOffset = (style.shadow || this.player.defaultStyle.shadow || 0) * scaleFactor;
+                // 描边与阴影等视觉效果更贴近字体高度，使用垂直缩放 scaleY
+                const outlineWidth = (style.outline || this.player.defaultStyle.outline) * scaleY;
+                const shadowOffset = (style.shadow || this.player.defaultStyle.shadow || 0) * scaleY;
                 const outlineColor = style.outlineColor || this.player.defaultStyle.outlineColor;
                 const backColor = style.backColor || this.player.defaultStyle.backColor;
 
@@ -552,6 +696,29 @@ export default class SubtitleRenderer {
                 if (italic) fontStyle += 'italic ';
                 const fontFamily = `"${fontName}", "Microsoft YaHei", "微软雅黑", "PingFang SC", "Hiragino Sans GB", "Heiti SC", "WenQuanYi Micro Hei", sans-serif`;
                 this.player.ctx.font = `${fontStyle} ${effectiveFontSize}px ${fontFamily}`;
+
+                // 可选的调试：在全局配置中开启后，打印绘制时的字体信息并绘制一个用于可视化的边框
+                try {
+                    const cfg = (typeof window !== 'undefined' && window.ASS_PLAYER_CONFIG) ? window.ASS_PLAYER_CONFIG : {};
+                    if (cfg.DEBUG_DRAW_FONT) {
+                        // 打印当前段的字体信息和测量宽度
+                        const debugMeasure = this.player.measureTextWidth(segment.text, `${fontStyle} ${effectiveFontSize}px ${fontFamily}`);
+                        console.log('[DEBUG_DRAW_FONT] text="' + segment.text + '", font="' + this.player.ctx.font + '", effectiveFontSize=' + effectiveFontSize + ', measured=' + debugMeasure);
+                        // 绘制半透明矩形以可视化文本占用的矩形（仅用于调试）
+                        this.player.ctx.save();
+                        this.player.ctx.strokeStyle = 'rgba(255,0,0,0.8)';
+                        this.player.ctx.lineWidth = Math.max(1, Math.round(effectiveFontSize * 0.08));
+                        this.player.ctx.globalAlpha = 0.6;
+                        // 由于当前变换可能已应用 translate/scale 等，使用 fillRect 在当前位置绘制
+                        // 我们将 rectangle 以文本中心为准绘制，宽度为 adjW，高度为 lineHeight
+                        const rectX = currentX;
+                        const rectY = y - fontSize; // 基于行基线向上一个字体高度作为矩形顶部
+                        this.player.ctx.strokeRect(rectX, rectY, adjW, lineHeight);
+                        this.player.ctx.restore();
+                    }
+                } catch (e) {
+                    // 忽略调试阶段的任何错误
+                }
 
                 // 绘制时使用 transform 来实现横向缩放 (scaleX)。我们以片段中心为变换原点，先 translate -> scale -> draw
                 const pieceCenterX = currentX + adjW / 2;
@@ -605,6 +772,7 @@ export default class SubtitleRenderer {
                     if (shadowOffset > 0) {
                         const shadowColor = backColor || 'rgba(0,0,0,0.6)';
                         this.player.ctx.shadowColor = shadowColor;
+                        // shadowOffset 在横向可能需要根据横向缩放调整
                         this.player.ctx.shadowOffsetX = shadowOffset / Math.max(styleScaleX, 0.0001);
                         this.player.ctx.shadowOffsetY = shadowOffset;
                         this.player.ctx.shadowBlur = Math.max(1, shadowOffset / 2);
@@ -687,7 +855,7 @@ export default class SubtitleRenderer {
      * @param {number} fontSize - 字体大小 (用于测量文本)
      * @returns {Array<Array<Object>>} 包含多行文本片段的数组
      */
-    wrapText(segments, maxWidth, fontSize) {
+    wrapText(segments, maxWidth, fontSize, fontStringForMeasure) {
         const lines = []; // 存储所有行
         let currentLine = []; // 当前正在构建的行
         let currentLineWidth = 0; // 当前行的宽度
@@ -707,7 +875,8 @@ export default class SubtitleRenderer {
                     wordToAdd = ' ' + word; // 在单词前添加一个空格
                 }
                 
-                const wordWidth = this.player.measureTextWidth(wordToAdd);
+                // 使用显式传入的 font 字符串进行测量，保证测量与绘制时字体一致
+                const wordWidth = this.player.measureTextWidth(wordToAdd, fontStringForMeasure);
                 
                 // 如果当前行加上这个词会超出最大宽度，并且当前行不为空，则进行换行
                 if (currentLineWidth + wordWidth > maxWidth && currentLine.length > 0) {
@@ -716,7 +885,7 @@ export default class SubtitleRenderer {
                     currentLineWidth = 0;
                     
                     // 新行的第一个单词不加空格
-                    const firstWordWidth = this.player.measureTextWidth(word);
+                    const firstWordWidth = this.player.measureTextWidth(word, fontStringForMeasure);
                     currentLine.push({
                         text: word,
                         color: segment.color

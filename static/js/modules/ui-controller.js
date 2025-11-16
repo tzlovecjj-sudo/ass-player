@@ -262,38 +262,106 @@ export default class UIController {
             setTimeout(() => this.setupCanvas(), 100);
             return;
         }
+
+        // 清理页面中可能重复存在的当前时间 DOM（有时因为旧模板或 artifact 被直接打开会出现重复）
+        try {
+            const timeEls = document.querySelectorAll('#currentTime');
+            if (timeEls && timeEls.length > 1) {
+                console.debug('[UI] 检测到多个 #currentTime 元素，保留第一个并移除其余');
+                for (let i = 1; i < timeEls.length; i++) {
+                    try { timeEls[i].remove(); } catch (e) {}
+                }
+            }
+        } catch (e) {
+            // 忽略清理失败
+        }
         
         console.log(`开始设置 Canvas 尺寸，视频原始尺寸: ${this.player.videoPlayer.videoWidth}x${this.player.videoPlayer.videoHeight}`);
         
-        // 1. 设置 Canvas 的绘图表面尺寸与视频原始尺寸一致，确保字幕渲染的清晰度
-        this.player.videoCanvas.width = this.player.videoPlayer.videoWidth;
-        this.player.videoCanvas.height = this.player.videoPlayer.videoHeight;
-        
-        // 2. 计算并设置 Canvas 的 CSS 显示尺寸，使其在保持宽高比的同时适应父容器
+        // 1. 先根据视频自然尺寸和容器计算出 CSS 显示尺寸（逻辑像素）
         const container = this.player.videoCanvas.parentElement;
         const containerWidth = container.clientWidth;
         const containerHeight = container.clientHeight;
         const videoAspectRatio = this.player.videoPlayer.videoWidth / this.player.videoPlayer.videoHeight;
         const containerAspectRatio = containerWidth / containerHeight;
 
-        // 如果处于网页全屏或浏览器全屏，遵循 B 站的视觉行为：优先以高度为基准铺满，宽度自适应
+        // 根据 fullscreen 或容器宽高比决定 CSS 展示行为（与之前逻辑保持一致）
         const isWebFs = document.body.classList && document.body.classList.contains('web-fullscreen-mode');
         const isBrowserFs = document.body.classList && document.body.classList.contains('browser-fullscreen-mode');
         if (isWebFs || isBrowserFs) {
-            // 强制使用高度优先的缩放，保证上下铺满、左右留黑
             this.player.videoCanvas.style.height = '100%';
             this.player.videoCanvas.style.width = 'auto';
         } else if (containerAspectRatio > videoAspectRatio) {
-            // 容器比视频更“宽”，因此以容器高度为基准进行缩放
             this.player.videoCanvas.style.height = '100%';
             this.player.videoCanvas.style.width = 'auto';
         } else {
-            // 容器比视频更“高”，因此以容器宽度为基准进行缩放
             this.player.videoCanvas.style.width = '100%';
             this.player.videoCanvas.style.height = 'auto';
         }
-        
-        console.log('Canvas 尺寸设置完成。');
+
+        // 2. 等待浏览器把 CSS 尺寸计算好（clientWidth/clientHeight），然后基于 CSS 尺寸和 devicePixelRatio 设置内部像素尺寸
+        //    这样能保证绘制时的逻辑坐标以 CSS 像素为单位，且内部像素被乘以 DPR 以保证清晰度。
+        // 获取最终的 CSS 显示尺寸
+        const cssWidth = Math.max(1, this.player.videoCanvas.clientWidth);
+        const cssHeight = Math.max(1, this.player.videoCanvas.clientHeight);
+        const dpr = window.devicePixelRatio || 1;
+
+        // 设置内部像素尺寸为 CSS 尺寸 * DPR
+        this.player.videoCanvas.width = Math.max(1, Math.round(cssWidth * dpr));
+        this.player.videoCanvas.height = Math.max(1, Math.round(cssHeight * dpr));
+        // 强制把 canvas 的 CSS 显示尺寸锁定为我们计算的逻辑像素尺寸（避免样式表或百分比导致的二次缩放）
+        try {
+            this.player.videoCanvas.style.width = cssWidth + 'px';
+            this.player.videoCanvas.style.height = cssHeight + 'px';
+        } catch (e) {
+            // 忽略在某些受限环境中设置样式可能失败的情况
+        }
+
+        // 将上下文变换为以 CSS 像素为单位的坐标系（ctx 以逻辑像素工作）
+        const ctx = this.player.videoCanvas.getContext('2d');
+        // 先重置变换，确保没有遗留的 transform
+        try { ctx.setTransform(1, 0, 0, 1, 0, 0); } catch (e) {}
+        // 应用 DPR 缩放
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        this.player.ctx = ctx; // 确保 player.ctx 指向新的 context（或已调整的 context）
+
+        // 记录 DPR 与逻辑尺寸，供渲染器使用
+        this.player.dpr = dpr;
+        this.player.logicalCanvasWidth = cssWidth;
+        this.player.logicalCanvasHeight = cssHeight;
+
+        // 输出调试信息，便于排查 CSS 尺寸与内部像素是否一致
+        console.log('Canvas 尺寸设置完成 (css:', cssWidth + 'x' + cssHeight, ', computed client:', this.player.videoCanvas.clientWidth + 'x' + this.player.videoCanvas.clientHeight, ', internal:', this.player.videoCanvas.width + 'x' + this.player.videoCanvas.height, ', dpr:', dpr, ').');
+        // 如果计算的 client 与实际 client 有明显偏差，给出提示
+        try {
+            const clientW = this.player.videoCanvas.clientWidth;
+            const clientH = this.player.videoCanvas.clientHeight;
+            if (Math.abs(clientW - cssWidth) > 1 || Math.abs(clientH - cssHeight) > 1) {
+                console.warn('警告：canvas CSS 尺寸与预期不匹配 (预期 cssWidth/cssHeight 与实际 clientWidth/clientHeight 差异较大)，这可能导致绘制缩放异常。', {cssWidth, cssHeight, clientW, clientH});
+            }
+        } catch (e) {
+            // 忽略调试检查错误
+        }
+
+        // 如果存在紧凑的字体缩放控件且用户没有显式保存过缩放值，自动根据 PlayResY 建议一个默认缩放
+        try {
+            const popup = document.getElementById('fontScalePopup');
+                if (popup && this.player.playResY) {
+                    // 优先使用视频自然高度（videoHeight）作为建议缩放，回退到 CSS 显示高度
+                    const videoH = (this.player.videoPlayer && this.player.videoPlayer.videoHeight) ? this.player.videoPlayer.videoHeight : null;
+                    const base = videoH || cssHeight;
+                    const suggested = Math.max(0.5, Math.min(2.0, base / this.player.playResY));
+                    console.debug('[FontScale] setupCanvas suggested', { base, cssHeight, videoNaturalHeight: videoH, playResY: this.player.playResY, suggested });
+                    const slider = popup.querySelector('input[type="range"]');
+                    if (slider) {
+                        slider.value = suggested.toString();
+                        // 触发 input 事件让控件应用该值
+                        try { slider.dispatchEvent(new Event('input', { bubbles: true })); } catch (e) { }
+                    }
+            }
+        } catch (e) {
+            // 忽略本步可能的错误
+        }
     }
 
     /**
@@ -303,6 +371,150 @@ export default class UIController {
         // 只有在视频已经加载（有尺寸信息）的情况下，才重新计算 Canvas 尺寸
         if (this.player.videoPlayer.videoWidth && this.player.videoPlayer.videoHeight) {
             this.setupCanvas();
+        }
+    }
+
+    /**
+    * 在播放器控制栏中创建一个字体缩放滑块，允许用户调整字幕渲染的缩放系数。
+    * 值域：0.5 - 2.0，步进 0.05，默认 1.0。该值为会话级别（不再在刷新或新视频时自动复用上一次的值）。
+     */
+    createFontScaleControl() {
+        try {
+            // 小图标 + 弹出滑块的实现：将图标插入到静音按钮左侧
+            if (document.getElementById('fontScaleIcon')) return; // 已存在则跳过
+
+            const controlsRight = document.querySelector('.controls .controls-right');
+            if (!controlsRight) return;
+
+            // 确保容器为相对定位，以便弹出框使用绝对定位
+            if (getComputedStyle(controlsRight).position === 'static') {
+                controlsRight.style.position = 'relative';
+            }
+
+            const muteBtn = controlsRight.querySelector('#muteBtn');
+
+            // 图标按钮（紧凑）
+            const iconBtn = document.createElement('button');
+            iconBtn.id = 'fontScaleIcon';
+            iconBtn.title = '字幕缩放';
+            iconBtn.type = 'button';
+            iconBtn.style.width = '30px';
+            iconBtn.style.height = '28px';
+            iconBtn.style.padding = '2px';
+            iconBtn.style.marginRight = '6px';
+            iconBtn.style.border = 'none';
+            iconBtn.style.background = 'transparent';
+            iconBtn.style.color = '#dfe8f8';
+            iconBtn.style.cursor = 'pointer';
+            iconBtn.style.fontSize = '14px';
+            iconBtn.innerText = 'A↕';
+
+            // 弹出框（默认隐藏）
+            const popup = document.createElement('div');
+            popup.id = 'fontScalePopup';
+            popup.style.position = 'absolute';
+            popup.style.bottom = '36px';
+            popup.style.right = (muteBtn ? (muteBtn.offsetWidth + 8) + 'px' : '0px');
+            popup.style.padding = '8px';
+            popup.style.background = 'rgba(10,12,16,0.95)';
+            popup.style.border = '1px solid rgba(255,255,255,0.06)';
+            popup.style.borderRadius = '6px';
+            popup.style.display = 'none';
+            popup.style.zIndex = '9999';
+            popup.style.minWidth = '140px';
+            popup.style.boxShadow = '0 6px 18px rgba(0,0,0,0.5)';
+
+            const slider = document.createElement('input');
+            slider.type = 'range';
+            slider.min = '0.5';
+            slider.max = '2.0';
+            slider.step = '0.05';
+            // 优先使用 localStorage 中保存的值；否则尝试根据当前 canvas 逻辑高度与 ASS 的 PlayResY 建议一个默认值
+                // 优先使用视频自然高度来计算建议缩放（视频加载完成时），回退到 canvas 的逻辑高度
+                const videoH = (this.player.videoPlayer && this.player.videoPlayer.videoHeight) ? this.player.videoPlayer.videoHeight : null;
+                if (videoH && this.player.playResY) {
+                    const suggested = Math.max(0.5, Math.min(2.0, videoH / this.player.playResY));
+                    slider.value = suggested.toString();
+                    console.debug('[FontScale] init: suggested from video naturalHeight/playResY', { videoNaturalHeight: videoH, playResY: this.player.playResY, suggested });
+                } else if (this.player.logicalCanvasHeight && this.player.playResY) {
+                    const suggested = Math.max(0.5, Math.min(2.0, this.player.logicalCanvasHeight / this.player.playResY));
+                    slider.value = suggested.toString();
+                    console.debug('[FontScale] init: suggested from logicalCanvasHeight/playResY', { logicalCanvasHeight: this.player.logicalCanvasHeight, playResY: this.player.playResY, suggested });
+                } else {
+                    slider.value = (this.player.fontScale || 1.0).toString();
+                    console.debug('[FontScale] init: fallback to player.fontScale', slider.value);
+                }
+            slider.style.width = '100%';
+
+            const row = document.createElement('div');
+            row.style.display = 'flex';
+            row.style.alignItems = 'center';
+            row.style.gap = '8px';
+
+            const valLabel = document.createElement('div');
+            valLabel.style.color = '#9fc7ff';
+            valLabel.style.fontSize = '12px';
+            valLabel.textContent = (parseFloat(slider.value) * 100).toFixed(0) + '%';
+
+            const resetIcon = document.createElement('button');
+            resetIcon.type = 'button';
+            resetIcon.title = '重置为100%';
+            resetIcon.style.border = 'none';
+            resetIcon.style.background = 'transparent';
+            resetIcon.style.color = '#dfe8f8';
+            resetIcon.style.cursor = 'pointer';
+            resetIcon.style.fontSize = '14px';
+            resetIcon.textContent = '⟲';
+
+            row.appendChild(valLabel);
+            row.appendChild(resetIcon);
+
+            popup.appendChild(slider);
+            popup.appendChild(row);
+
+            // 插入 icon（在 muteBtn 左侧）
+            if (muteBtn && muteBtn.parentElement) {
+                muteBtn.parentElement.insertBefore(iconBtn, muteBtn);
+            } else {
+                controlsRight.appendChild(iconBtn);
+            }
+            controlsRight.appendChild(popup);
+
+            const applyScale = (v) => {
+                const scale = parseFloat(v) || 1.0;
+                this.player.fontScale = scale;
+                // 不再持久化到 localStorage，避免刷新/新视频时复用上次的值
+                try { if (this.player.textMetricsCache && typeof this.player.textMetricsCache.clear === 'function') this.player.textMetricsCache.clear(); } catch (e) {}
+                try { if (this.player.subtitleRenderer) this.player.subtitleRenderer.renderVideoWithSubtitles(); } catch (e) {}
+                valLabel.textContent = (scale * 100).toFixed(0) + '%';
+            };
+
+            slider.addEventListener('input', (e) => {
+                applyScale(e.target.value);
+            });
+
+            resetIcon.addEventListener('click', () => {
+                slider.value = '1.0';
+                applyScale('1.0');
+            });
+
+            // 切换弹出框显示
+            iconBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                popup.style.display = (popup.style.display === 'none') ? 'block' : 'none';
+            });
+
+            // 点击外部时关闭弹出框
+            document.addEventListener('click', (ev) => {
+                if (!popup.contains(ev.target) && ev.target !== iconBtn) {
+                    popup.style.display = 'none';
+                }
+            });
+
+            // 初始化应用当前值
+            applyScale(slider.value);
+        } catch (e) {
+            console.debug('创建紧凑字体缩放控件失败：', e);
         }
     }
 }

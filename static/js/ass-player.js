@@ -33,6 +33,12 @@ export default class EmbeddedASSPlayer {
         this.initializeEventListeners();
         
         console.log('播放器初始化完成。');
+        // 为了便于开发时调试，临时把播放器实例暴露到 window
+        try {
+            if (typeof window !== 'undefined') window._ASS_PLAYER_INSTANCE = this;
+        } catch (e) {
+            // 忽略在非浏览器环境下的错误
+        }
     }
     
     /**
@@ -57,7 +63,18 @@ export default class EmbeddedASSPlayer {
         this.defaultStyle = DEFAULT_STYLES;
         // 播放器配置（供其他模块统一读取，例如全屏控件的隐藏延迟）
         this.PLAYER_CONFIG = PLAYER_CONFIG;
-
+        
+        // 从全局运行时配置（可能由后端注入 window.ASS_PLAYER_CONFIG）读取首选字幕语言
+        // 可选值：'zh'（只显示中文）、'en'（只显示英文）、'both'（显示所有）
+        // 这个设置用于避免同时渲染双语字幕导致的视觉重叠。默认 'both' 保持兼容行为。
+        try {
+            const globalCfg = (typeof window !== 'undefined' && window.ASS_PLAYER_CONFIG) ? window.ASS_PLAYER_CONFIG : null;
+            this.subtitleLanguagePreference = (globalCfg && globalCfg.PREFERRED_SUBTITLE) || 'both';
+        } catch (e) {
+            this.subtitleLanguagePreference = 'both';
+        }
+        // 手动字体缩放系数（1 = 默认），可通过前端控件调整
+        this.fontScale = 1.0;
         // 实例化核心组件
         this.subtitleRenderer = new SubtitleRenderer(this);
         this.fullscreenControls = new FullscreenControls(this);
@@ -72,6 +89,14 @@ export default class EmbeddedASSPlayer {
         this.uiController = new UIController(this);           // UI 更新
         this.fileHandler = new FileHandler(this);             // 文件加载与处理
         this.progressController = new ProgressController(this); // 进度条交互
+        // 在控制器初始化后，创建字体缩放控件（如果 UI 可用）
+        try {
+            if (this.uiController && typeof this.uiController.createFontScaleControl === 'function') {
+                this.uiController.createFontScaleControl();
+            }
+        } catch (e) {
+            console.debug('无法创建字体缩放控件：', e);
+        }
     }
     
     /**
@@ -394,18 +419,39 @@ export default class EmbeddedASSPlayer {
      * @param {string} text - 需要测量的文本。
      * @returns {number} 文本的宽度（像素）。
      */
-    measureTextWidth(text) {
-        // 获取当前的字体设置作为缓存键的一部分
-        const currentFont = this.ctx.font;
+    /**
+     * 测量文本在 Canvas 上的渲染宽度，并使用缓存以提高性能。
+     * 如果传入了 font 参数，将在测量时临时使用该 font（不会持久修改 ctx.font），
+     * 并把 font 纳入缓存键以避免不同 font 之间冲突。
+     * @param {string} text - 需要测量的文本。
+     * @param {string} [font] - 可选的 Canvas font 字符串（例如 "bold 12px Sans"）。
+     * @returns {number} 文本的宽度（像素）。
+     */
+    measureTextWidth(text, font) {
+        // 使用显式传入的 font 或当前 ctx.font 作为缓存键的一部分
+        const currentFont = font || this.ctx.font;
         const cacheKey = `${currentFont}|${text}`;
-        
+
         // 如果缓存中已有结果，直接返回
         if (this.textMetricsCache.has(cacheKey)) {
             return this.textMetricsCache.get(cacheKey);
         }
-        
-        // 否则，进行测量
-        const width = this.ctx.measureText(text).width;
+
+        // 否则，进行测量。若传入了 font，则临时设置 ctx.font 来测量，随后还原。
+        let width;
+        if (font) {
+            const prev = this.ctx.font;
+            try {
+                this.ctx.font = font;
+                width = this.ctx.measureText(text).width;
+            } finally {
+                // 无论测量是否成功，都尽量还原原来的字体设置
+                this.ctx.font = prev;
+            }
+        } else {
+            width = this.ctx.measureText(text).width;
+        }
+
         // 将结果存入缓存
         this.textMetricsCache.set(cacheKey, width);
         return width;

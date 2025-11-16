@@ -41,6 +41,8 @@ def index():
         'AUTO_PLAY_DEMO': getattr(cfg, 'AUTO_PLAY_DEMO', True),
         # 注入默认示例字幕名（位于 /ass_files/ 下）
         'DEFAULT_ASS_NAME': getattr(cfg, 'DEFAULT_ASS_NAME', '2 Minecraft Pros VS 1000 Players.ass'),
+        # 前端字幕语言偏好：'zh' | 'en' | 'both'（用于简单的渲染去重策略）
+        'PREFERRED_SUBTITLE': getattr(cfg, 'PREFERRED_SUBTITLE', 'both'),
     }
     return render_template('index.html', ASS_PLAYER_CONFIG=public_cfg)
 
