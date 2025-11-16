@@ -39,7 +39,7 @@ class Config:
     # 是否在页面加载时自动加载并尝试播放示例视频（布尔，默认启用）
     AUTO_PLAY_DEMO = os.environ.get('ASS_AUTO_PLAY_DEMO', 'true').lower() == 'true'
     # 默认示例字幕文件名（位于 /ass_files/ 下），可通过 ASS_DEFAULT_ASS_NAME 覆盖
-    DEFAULT_ASS_NAME = os.environ.get('ASS_DEFAULT_ASS_NAME', '2 Minecraft Pros VS 1000 Players.ass')
+    DEFAULT_ASS_NAME = os.environ.get('ASS_DEFAULT_ASS_NAME', 'Finding the Tomb of the Minecraft Mafia.ass')
     
     @classmethod
     def to_dict(cls) -> Dict[str, Any]:
