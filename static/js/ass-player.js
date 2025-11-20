@@ -172,9 +172,16 @@ export default class EmbeddedASSPlayer {
         console.log('开始设置事件监听器...');
         
         // --- 文件和URL加载 ---
-        this.videoFileInput.addEventListener('change', (e) => this.fileHandler.loadVideo(e.target.files[0]));
-        this.subtitleFileInput.addEventListener('change', (e) => this.fileHandler.loadSubtitles(e.target.files[0]));
-        this.loadOnlineVideoBtn.addEventListener('click', () => this.fileHandler.loadOnlineVideo());
+        // 某些简化的页面（如移动端精简版）可能不包含所有输入/按钮，先做存在性检查再绑定事件
+        if (this.videoFileInput) {
+            this.videoFileInput.addEventListener('change', (e) => this.fileHandler.loadVideo(e.target.files[0]));
+        }
+        if (this.subtitleFileInput) {
+            this.subtitleFileInput.addEventListener('change', (e) => this.fileHandler.loadSubtitles(e.target.files[0]));
+        }
+        if (this.loadOnlineVideoBtn) {
+            this.loadOnlineVideoBtn.addEventListener('click', () => this.fileHandler.loadOnlineVideo());
+        }
                 
         // --- 播放控制 ---
         this.playPauseBtn.addEventListener('click', () => this.videoController.togglePlayPause());

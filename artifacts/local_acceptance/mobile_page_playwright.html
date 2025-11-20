@@ -1,11 +1,9 @@
-﻿<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
+<!DOCTYPE html><html lang="zh-CN"><head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>ASS字幕播放器 - 移动端</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile.css') }}">
+    <link rel="stylesheet" href="/static/css/main.css">
+    <link rel="stylesheet" href="/static/css/mobile.css">
     <style>
         /* 简单的移动端适配样式，优先覆盖桌面布局中的布局问题 */
         body { font-size: 16px; padding: 0; margin: 0; background: #111; color: #eee; }
@@ -29,7 +27,7 @@
             </div>
 
             <div class="video-wrap">
-                <video id="videoPlayer" playsinline webkit-playsinline controls crossorigin="anonymous">
+                <video id="videoPlayer" playsinline="" webkit-playsinline="" controls="" crossorigin="anonymous">
                     您的浏览器不支持视频播放
                 </video>
                 <!-- 为保持与桌面播放器兼容，加入 canvas 供字幕渲染使用 -->
@@ -53,49 +51,23 @@
                     </div>
                 </div>
 
-                <div class="controls-right">
-                    <button id="muteBtn" title="静音/取消静音">🔇</button>
-                    <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1" style="width:70px;vertical-align:middle;">
+                <div class="controls-right" style="position: relative;">
+                    <button id="fontScaleIcon" title="字幕缩放" type="button" style="width: 30px; height: 28px; padding: 2px; margin-right: 6px; border: none; background: transparent; color: rgb(223, 232, 248); cursor: pointer; font-size: 14px;">A↕</button><button id="muteBtn" title="静音/取消静音">🔇</button>
+                    <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1" style="width: 70px; vertical-align: middle;">
                     <button id="fullscreenBtn" title="网页全屏">⛶</button>
-                </div>
+                <div id="fontScalePopup" style="position: absolute; bottom: 36px; right: 49px; padding: 8px; background: rgba(10, 12, 16, 0.95); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 6px; display: none; z-index: 9999; min-width: 140px; box-shadow: rgba(0, 0, 0, 0.5) 0px 6px 18px;"><input type="range" min="0.5" max="2.0" step="0.05" style="width: 100%;"><div style="display: flex; align-items: center; gap: 8px;"><div style="color: rgb(159, 199, 255); font-size: 12px;">100%</div><button type="button" title="重置为100%" style="border: none; background: transparent; color: rgb(223, 232, 248); cursor: pointer; font-size: 14px;">⟲</button></div></div></div>
             </div>
 
             <!-- 隐藏但必要的元素（供文件选择/脚本绑定使用） -->
-            <input type="file" id="videoFile" style="display:none" accept="video/*" />
-            <input type="file" id="subtitleFile" style="display:none" accept=".ass,.ssa,.srt" />
+            <input type="file" id="videoFile" style="display: none;" accept="video/*">
+            <input type="file" id="subtitleFile" style="display: none;" accept=".ass,.ssa,.srt">
 
             <div class="subtitle-preview-container" id="mobileSubtitlePreview">
-                <div class="subtitle-preview-content" id="subtitlePreview">字幕将在这里实时显示</div>
+                <div class="subtitle-preview-content" id="subtitlePreview">无字幕</div>
             </div>
         </div>
 
         <div class="mobile-panel" id="mobilePanel">
-            <!-- 临时恢复的视频/字幕加载面板（移动端调试用） -->
-            <div class="panel-section">
-                <h3>视频源设置</h3>
-                <div class="upload-group">
-                    <label for="videoFile">📁 选择本地视频文件</label>
-                    <input type="file" id="videoFile" accept="video/*">
-                    <div class="platform-info">支持 MP4, WebM 等格式</div>
-                </div>
-
-                <div class="upload-group">
-                    <label for="onlineVideoUrl">🌐 在线视频URL</label>
-                    <div class="url-input-container">
-                        <input type="text" id="onlineVideoUrl" placeholder="请输入B站视频页或直链">
-                        <button id="loadOnlineVideoBtn">加载</button>
-                    </div>
-                    <div class="platform-info">支持自动解析 B 站视频</div>
-                </div>
-
-                <div class="upload-group">
-                    <label for="subtitleFile">📝 选择ASS字幕文件</label>
-                    <input type="file" id="subtitleFile" accept=".ass">
-                    <div class="platform-info">仅支持 ASS 格式</div>
-                </div>
-
-                <div id="uploadStatus" class="status"></div>
-            </div>
             <div class="panel-row">
                 <div class="label">视频标题</div>
                 <div class="value" id="videoTitle">未加载</div>
@@ -127,7 +99,7 @@
 
     <script>
         // 注入后端公开的运行时配置到前端
-        window.ASS_PLAYER_CONFIG = {{ ASS_PLAYER_CONFIG | tojson | safe }};
+        window.ASS_PLAYER_CONFIG = {"AUTO_PLAY_DEMO": true, "DEFAULT_ASS_NAME": "Finding the Tomb of the Minecraft Mafia.ass", "DEFAULT_VIDEO_URL": "https://www.bilibili.com/video/BV1AyCQB4EjC", "PREFERRED_SUBTITLE": "both", "REPORT_TIMEOUT_MS": 3000};
         // Canvas rendering options for mobile devices.
         // Player renderer should read `window.CANVAS_RENDER_OPTIONS` and adapt:
         // - downscale: render scale relative to displayed size (0.5 means render at 50% resolution)
@@ -139,8 +111,7 @@
             useOffscreen: true
         };
     </script>
-    <script src="{{ url_for('static', filename='js/mobile-init.js') }}"></script>
-    <script type="module" src="{{ url_for('static', filename='js/modules/main.js') }}"></script>
+    <script type="module" src="/static/js/modules/main.js"></script>
     <script>
         // 如果用户点击了“打开桌面版”并设置了本地标记，下次不再自动重定向到移动页
         // 这个脚本在移动页面加载时也会处理本地标记（避免循环）
@@ -155,5 +126,5 @@
             }catch(e){}
         })();
     </script>
-</body>
-</html>
+
+</body></html>

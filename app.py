@@ -65,8 +65,13 @@ def index():
 def mobile():
     """渲染移动端优化页面（面向手机浏览器）。"""
     cfg = get_config()
+    # 移动端也注入与桌面相同的运行时配置，以便复用相同的前端自动播放/示例加载逻辑
     public_cfg = {
         'REPORT_TIMEOUT_MS': getattr(cfg, 'REPORT_TIMEOUT_MS', 3000),
+        'DEFAULT_VIDEO_URL': getattr(cfg, 'DEFAULT_VIDEO_URL', 'https://www.bilibili.com/video/BV1NmyXBTEGD'),
+        'AUTO_PLAY_DEMO': getattr(cfg, 'AUTO_PLAY_DEMO', True),
+        'DEFAULT_ASS_NAME': getattr(cfg, 'DEFAULT_ASS_NAME', '2 Minecraft Pros VS 1000 Players.ass'),
+        'PREFERRED_SUBTITLE': getattr(cfg, 'PREFERRED_SUBTITLE', 'both'),
     }
     return render_template('index_mobile.html', ASS_PLAYER_CONFIG=public_cfg)
 

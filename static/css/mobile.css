@@ -85,6 +85,33 @@ button {
 /* Subtitle preview readable on small screens */
 .subtitle-preview-content { font-size: 15px !important; padding: 8px !important; }
 
+/* 移动端音量弹出控件 */
+#mobileVolumePopup {
+  display: none;
+  position: absolute;
+  bottom: 44px;
+  right: 0px;
+  width: 40px;
+  height: 120px;
+  background: rgba(10,12,16,0.95);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  padding: 6px;
+  z-index: 10000;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+}
+#mobileVolumePopup.visible { display: block }
+#mobileVolumePopup input[type=range] {
+  /* 通过旋转让 range 显示为垂直条（兼容性好但方向可能需要 JS 同步） */
+  transform: rotate(-90deg);
+  -webkit-appearance: none;
+  width: 110px;
+  height: 30px;
+  background: transparent;
+}
+#mobileVolumePopup input[type=range]::-webkit-slider-runnable-track { height:6px; background: linear-gradient(90deg,#2d8cff,#0066cc); border-radius:4px }
+#mobileVolumePopup input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; background:#fff; border-radius:50% }
+
 /* Inputs & buttons stacked on narrow widths */
 @media (max-width: 480px) {
   .url-input-container { flex-direction: column; gap: 6px; }
