@@ -60,9 +60,7 @@
                 </div>
             </div>
 
-            <!-- 隐藏但必要的元素（供文件选择/脚本绑定使用） -->
-            <input type="file" id="videoFile" style="display:none" accept="video/*" />
-            <input type="file" id="subtitleFile" style="display:none" accept=".ass,.ssa,.srt" />
+            <!-- 注意：移动端面板已包含可见的文件输入，避免重复 ID 导致事件绑定到不可见元素 -->
 
             <div class="subtitle-preview-container" id="mobileSubtitlePreview">
                 <div class="subtitle-preview-content" id="subtitlePreview">字幕将在这里实时显示</div>
@@ -119,41 +117,13 @@
 
             <div style="margin-top:10px;font-size:12px;color:#888">提示：移动端已精简界面，选择视频/字幕与下载功能已隐藏。</div>
 
-            <div class="small link-desktop" style="margin-top:12px">如果你更喜欢桌面版，<a href="/?desktop=1" onclick="try{localStorage.setItem('forceDesktop','1')}catch(e){}">点此打开桌面版</a></div>
+            <div class="small link-desktop" style="margin-top:12px">如果你更喜欢桌面版，<a id="forceDesktopLink" href="/?desktop=1">点此打开桌面版</a></div>
         </div>
 
         <div style="height:40px"></div>
     </div>
 
-    <script>
-        // 注入后端公开的运行时配置到前端
-        window.ASS_PLAYER_CONFIG = {{ ASS_PLAYER_CONFIG | tojson | safe }};
-        // Canvas rendering options for mobile devices.
-        // Player renderer should read `window.CANVAS_RENDER_OPTIONS` and adapt:
-        // - downscale: render scale relative to displayed size (0.5 means render at 50% resolution)
-        // - maxFps: maximum frames per second to render (use frame-skipping)
-        // - useOffscreen: prefer OffscreenCanvas when available
-        window.CANVAS_RENDER_OPTIONS = {
-            downscale: 0.6,
-            maxFps: 20,
-            useOffscreen: true
-        };
-    </script>
-    <script src="{{ url_for('static', filename='js/mobile-init.js') }}"></script>
-    <script type="module" src="{{ url_for('static', filename='js/modules/main.js') }}"></script>
-    <script>
-        // 如果用户点击了“打开桌面版”并设置了本地标记，下次不再自动重定向到移动页
-        // 这个脚本在移动页面加载时也会处理本地标记（避免循环）
-        (function(){
-            try{
-                var force = localStorage.getItem('forceDesktop');
-                if(force === '1'){
-                    // 清理标记并跳回桌面页面
-                    localStorage.removeItem('forceDesktop');
-                    window.location.href = '/';
-                }
-            }catch(e){}
-        })();
-    </script>
+    <!-- 通过外部脚本从 /config.json 拉取运行时配置，避免内联脚本触发 CSP 限制 -->
+    <script src="{{ url_for('static', filename='js/load-config.js') }}" defer></script>
 </body>
 </html>

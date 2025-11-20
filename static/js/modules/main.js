@@ -8,7 +8,15 @@ import EmbeddedASSPlayer from '../ass-player.js'; // 导入播放器主类
  * 当页面的 DOM 内容完全加载并解析完毕后，执行此回调函数。
  * 这是模块化版本的应用程序启动点。
  */
-document.addEventListener('DOMContentLoaded', function() {
+function onReady(fn){
+    if(document.readyState === 'complete' || document.readyState === 'interactive'){
+        setTimeout(fn, 0);
+    } else {
+        document.addEventListener('DOMContentLoaded', fn);
+    }
+}
+
+onReady(function() {
     console.log('DOM 加载完成，开始初始化 ASS 播放器 (模块化版本)...');
     try {
         window.player = new EmbeddedASSPlayer();
@@ -32,9 +40,14 @@ document.addEventListener('DOMContentLoaded', function() {
         // 加载按钮处理（注意：客户端不再实施时间窗口限流，仅在一次点击期间禁用按钮以避免 UI 闪烁）
         if (loadBtn && urlInput) {
             loadBtn.textContent = '加载';
+            // 为了便于自动化运行诊断，添加详细的临时日志来追踪点击与请求流程。
+            // 注意：这是临时诊断性修改，定位问题后应移除或改为可配置的日志级别。
             loadBtn.onclick = async () => {
+                console.log('[诊断] loadOnlineVideoBtn 点击事件触发');
                 const url = urlInput.value.trim();
+                console.log('[诊断] 当前输入 URL：', url);
                 if (!url) {
+                    console.log('[诊断] 输入为空，取消解析');
                     window.player.showStatus('请输入有效的视频 URL。', 'error');
                     return;
                 }
@@ -44,16 +57,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 try {
                     // 开始计时：从用户点击“加载/解析”按钮时计时，直到前端播放成功
                     const parseStart = (typeof performance !== 'undefined' && performance.now) ? performance.now() : Date.now();
+                    console.log('[诊断] 即将调用 /api/auto-parse，url=', url);
                     const resp = await fetch(`/api/auto-parse?url=${encodeURIComponent(url)}`);
+                    console.log('[诊断] /api/auto-parse 返回，HTTP 状态：', resp.status);
                     const status = resp.status;
                     let data = {};
                     try {
                         data = await resp.json();
+                        console.log('[诊断] /api/auto-parse JSON 解析结果：', data);
                     } catch (jsonErr) {
-                        console.warn('解析 API 返回的 JSON 失败：', jsonErr);
+                        console.warn('[诊断] 解析 API 返回的 JSON 失败：', jsonErr);
                         data = {};
                     }
-                    console.log('auto-parse response:', { status, data });
 
                     // 如果后端返回 429，前端只展示提示，不在客户端设置额外的时间窗口限制
                     if (status === 429) {
@@ -63,6 +78,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
 
                     if (resp.ok && data && data.success && data.video_url) {
+                        console.log('[诊断] 后端返回视频直链，开始使用直链加载播放器');
                         // 将解析开始时间传递给文件处理器（作为第四个参数），以便在播放成功时上报加载耗时
                         window.player.fileHandler.loadOnlineVideoWithUrl(data.video_url, url, null, parseStart);
                     } else if (data && data.success) {
@@ -74,11 +90,11 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     } else {
                         const errMsg = data && data.error ? data.error : `解析失败，HTTP ${status}`;
-                        console.warn('解析未成功，返回数据：', data);
+                        console.warn('[诊断] 解析未成功，返回数据：', data);
                         window.player.showStatus(errMsg || '未获取到视频直链。', 'error');
                     }
                 } catch (e) {
-                    console.error('解析视频链接异常:', e);
+                    console.error('[诊断] 解析视频链接异常:', e);
                     window.player.showStatus('解析视频链接失败，请检查网络或稍后重试。', 'error');
                 } finally {
                     // 始终恢复按钮状态，避免客户端自我节流

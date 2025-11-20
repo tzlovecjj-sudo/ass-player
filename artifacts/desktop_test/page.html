@@ -1,14 +1,12 @@
-<!DOCTYPE html>
-<html lang="zh-CN">
-<head>
+<!DOCTYPE html><html lang="zh-CN"><head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ASS字幕播放器 - 主播放页面</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/layout.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/fullscreen.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
-</head>
+    <link rel="stylesheet" href="/static/css/main.css">
+    <link rel="stylesheet" href="/static/css/layout.css">
+    <link rel="stylesheet" href="/static/css/fullscreen.css">
+    <link rel="stylesheet" href="/static/css/components.css">
+<script src="/static/js/mobile-init.js" defer=""></script><script src="/static/js/inline-bindings.js" defer=""></script><script type="module" src="/static/js/modules/main.js"></script></head>
 <body>
     <div class="container">
         <div class="layout-container">
@@ -37,11 +35,11 @@
                         </div>
                     </div>
                     
-                    <div class="controls-right">
+                    <div class="controls-right" style="position: relative;">
                         <button id="muteBtn" title="静音/取消静音">🔇</button>
                         <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1" style="width: 70px; vertical-align: middle;">
                         <button id="fullscreenBtn" title="网页全屏">⛶</button>
-                    </div>
+                    <div id="mobileVolumePopup"><input id="volumeSlider" type="range" min="0" max="1" step="0.01" value="1" style=""></div></div>
                 </div>
                 
                 <!-- 字幕预览区域 - 移到最底部 -->
@@ -60,7 +58,7 @@
                     <h1 class="app-title">ASS字幕播放器</h1>
                     <p class="app-description">支持本地和在线视频播放，硬字幕效果</p>
                     <div class="nav-links">
-                        <a href="{{ url_for('instructions') }}" class="nav-link" target="_blank">使用说明</a>
+                        <a href="/instructions" class="nav-link" target="_blank">使用说明</a>
                         <a href="https://www.bilibili.com/video/BV19w1HB8EuW/" class="nav-link" target="_blank">示例硬字幕视频</a>
                     </div>
                 </div>
@@ -71,14 +69,14 @@
                     
                     <div class="upload-group">
                         <label for="videoFile">📁 选择本地视频文件</label>
-                        <input type="file" id="videoFile" accept="video/*">
+                        <input type="file" id="videoFile" accept="video/*" style="">
                         <div class="platform-info">支持 MP4, WebM, AVI 等格式</div>
                     </div>
                     
                     <div class="upload-group">
                         <label for="onlineVideoUrl">🌐 在线视频URL</label>
                         <div class="url-input-container">
-                            <input type="text" id="onlineVideoUrl" placeholder="请输入B站、YouTube等视频链接">
+                            <input type="text" id="onlineVideoUrl" placeholder="请输入B站、YouTube等视频链接" style="">
                             <button id="loadOnlineVideoBtn">加载</button>
                         </div>
                         <div class="platform-info">自动解析B站视频，支持其他平台直链</div>
@@ -86,7 +84,7 @@
                     
                     <div class="upload-group">
                         <label for="subtitleFile">📝 选择ASS字幕文件</label>
-                        <input type="file" id="subtitleFile" accept=".ass">
+                        <input type="file" id="subtitleFile" accept=".ass" style="">
                         <div class="platform-info">仅支持ASS格式字幕文件</div>
                     </div>
                     
@@ -129,6 +127,6 @@
 
     <!-- 使用ES6模块化版本 -->
     <!-- 从后端拉取运行时配置并动态加载模块，避免内联脚本触发 CSP -->
-    <script src="{{ url_for('static', filename='js/load-config.js') }}" defer></script>
-</body>
-</html>
+    <script src="/static/js/load-config.js" defer=""></script>
+
+</body></html>

@@ -18,7 +18,7 @@
         .link-desktop { text-align:center; margin-top:8px }
         .link-desktop a { color:#2d8cff }
     </style>
-</head>
+<script src="/static/js/mobile-init.js" defer=""></script><script src="/static/js/inline-bindings.js" defer=""></script><script type="module" src="/static/js/modules/main.js"></script></head>
 <body>
     <div class="mobile-container">
         <div id="mobile-header">
@@ -27,7 +27,7 @@
             </div>
 
             <div class="video-wrap">
-                <video id="videoPlayer" playsinline="" webkit-playsinline="" controls="" crossorigin="anonymous">
+                <video id="videoPlayer" playsinline="" webkit-playsinline="" controls="" crossorigin="anonymous" src="https://upos-sz-estghw.bilivideo.com/upgcxcode/76/39/34039073976/34039073976_qe1-1-192.mp4?e=ig8euxZM2rNcNbRa7bdVhwdlhWujhwdVhoNvNC8BqJIzNbfq9rVEuxTEnE8L5F6VnEsSTx0vkX8fqJeYTj_lta53NCM=&amp;platform=html5&amp;nbs=1&amp;uipk=5&amp;oi=3745947616&amp;gen=playurlv3&amp;os=estghw&amp;trid=0622756979144cb8bc46d37febf5cf2h&amp;mid=0&amp;deadline=1763634127&amp;og=hw&amp;upsig=c6fabf2aa554401f3c5500bb441f4f5e&amp;uparams=e,platform,nbs,uipk,oi,gen,os,trid,mid,deadline,og&amp;bvc=vod&amp;nettype=0&amp;bw=1409055&amp;build=0&amp;dl=0&amp;f=h_0_0&amp;agrr=1&amp;buvid=&amp;orderid=0,1">
                     您的浏览器不支持视频播放
                 </video>
                 <!-- 为保持与桌面播放器兼容，加入 canvas 供字幕渲染使用 -->
@@ -55,12 +55,10 @@
                     <button id="fontScaleIcon" title="字幕缩放" type="button" style="width: 30px; height: 28px; padding: 2px; margin-right: 6px; border: none; background: transparent; color: rgb(223, 232, 248); cursor: pointer; font-size: 14px;">A↕</button><button id="muteBtn" title="静音/取消静音">🔇</button>
                     <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1" style="width: 70px; vertical-align: middle;">
                     <button id="fullscreenBtn" title="网页全屏">⛶</button>
-                <div id="fontScalePopup" style="position: absolute; bottom: 36px; right: 49px; padding: 8px; background: rgba(10, 12, 16, 0.95); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 6px; display: none; z-index: 9999; min-width: 140px; box-shadow: rgba(0, 0, 0, 0.5) 0px 6px 18px;"><input type="range" min="0.5" max="2.0" step="0.05" style="width: 100%;"><div style="display: flex; align-items: center; gap: 8px;"><div style="color: rgb(159, 199, 255); font-size: 12px;">100%</div><button type="button" title="重置为100%" style="border: none; background: transparent; color: rgb(223, 232, 248); cursor: pointer; font-size: 14px;">⟲</button></div></div></div>
+                <div id="mobileVolumePopup"><input id="volumeSlider" type="range" min="0" max="1" step="0.01" value="1" style=""></div><div id="fontScalePopup" style="position: absolute; bottom: 36px; right: 49px; padding: 8px; background: rgba(10, 12, 16, 0.95); border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 6px; display: none; z-index: 9999; min-width: 140px; box-shadow: rgba(0, 0, 0, 0.5) 0px 6px 18px;"><input type="range" min="0.5" max="2.0" step="0.05" style="width: 100%;"><div style="display: flex; align-items: center; gap: 8px;"><div style="color: rgb(159, 199, 255); font-size: 12px;">100%</div><button type="button" title="重置为100%" style="border: none; background: transparent; color: rgb(223, 232, 248); cursor: pointer; font-size: 14px;">⟲</button></div></div></div>
             </div>
 
-            <!-- 隐藏但必要的元素（供文件选择/脚本绑定使用） -->
-            <input type="file" id="videoFile" style="display: none;" accept="video/*">
-            <input type="file" id="subtitleFile" style="display: none;" accept=".ass,.ssa,.srt">
+            <!-- 注意：移动端面板已包含可见的文件输入，避免重复 ID 导致事件绑定到不可见元素 -->
 
             <div class="subtitle-preview-container" id="mobileSubtitlePreview">
                 <div class="subtitle-preview-content" id="subtitlePreview">无字幕</div>
@@ -68,6 +66,32 @@
         </div>
 
         <div class="mobile-panel" id="mobilePanel">
+            <!-- 临时恢复的视频/字幕加载面板（移动端调试用） -->
+            <div class="panel-section">
+                <h3>视频源设置</h3>
+                <div class="upload-group">
+                    <label for="videoFile">📁 选择本地视频文件</label>
+                    <input type="file" id="videoFile" accept="video/*" style="">
+                    <div class="platform-info">支持 MP4, WebM 等格式</div>
+                </div>
+
+                <div class="upload-group">
+                    <label for="onlineVideoUrl">🌐 在线视频URL</label>
+                    <div class="url-input-container">
+                        <input type="text" id="onlineVideoUrl" placeholder="请输入B站视频页或直链" style="">
+                        <button id="loadOnlineVideoBtn">加载</button>
+                    </div>
+                    <div class="platform-info">支持自动解析 B 站视频</div>
+                </div>
+
+                <div class="upload-group">
+                    <label for="subtitleFile">📝 选择ASS字幕文件</label>
+                    <input type="file" id="subtitleFile" accept=".ass" style="">
+                    <div class="platform-info">仅支持 ASS 格式</div>
+                </div>
+
+                <div id="uploadStatus" class="status error" style="position: relative;"><div class="status-content">视频播放错误: DEMUXER_ERROR_NO_SUPPORTED_STREAMS: FFmpegDemuxer: no supported streams</div><button class="status-close" aria-label="关闭提示" style="position: absolute; top: 6px; right: 6px; border: none; background: transparent; color: rgb(153, 153, 153); cursor: pointer; font-size: 14px; padding: 2px 6px;">✕</button></div>
+            </div>
             <div class="panel-row">
                 <div class="label">视频标题</div>
                 <div class="value" id="videoTitle">未加载</div>
@@ -91,40 +115,13 @@
 
             <div style="margin-top:10px;font-size:12px;color:#888">提示：移动端已精简界面，选择视频/字幕与下载功能已隐藏。</div>
 
-            <div class="small link-desktop" style="margin-top:12px">如果你更喜欢桌面版，<a href="/?desktop=1" onclick="try{localStorage.setItem('forceDesktop','1')}catch(e){}">点此打开桌面版</a></div>
+            <div class="small link-desktop" style="margin-top:12px">如果你更喜欢桌面版，<a id="forceDesktopLink" href="/?desktop=1">点此打开桌面版</a></div>
         </div>
 
         <div style="height:40px"></div>
     </div>
 
-    <script>
-        // 注入后端公开的运行时配置到前端
-        window.ASS_PLAYER_CONFIG = {"AUTO_PLAY_DEMO": true, "DEFAULT_ASS_NAME": "Finding the Tomb of the Minecraft Mafia.ass", "DEFAULT_VIDEO_URL": "https://www.bilibili.com/video/BV1AyCQB4EjC", "PREFERRED_SUBTITLE": "both", "REPORT_TIMEOUT_MS": 3000};
-        // Canvas rendering options for mobile devices.
-        // Player renderer should read `window.CANVAS_RENDER_OPTIONS` and adapt:
-        // - downscale: render scale relative to displayed size (0.5 means render at 50% resolution)
-        // - maxFps: maximum frames per second to render (use frame-skipping)
-        // - useOffscreen: prefer OffscreenCanvas when available
-        window.CANVAS_RENDER_OPTIONS = {
-            downscale: 0.6,
-            maxFps: 20,
-            useOffscreen: true
-        };
-    </script>
-    <script type="module" src="/static/js/modules/main.js"></script>
-    <script>
-        // 如果用户点击了“打开桌面版”并设置了本地标记，下次不再自动重定向到移动页
-        // 这个脚本在移动页面加载时也会处理本地标记（避免循环）
-        (function(){
-            try{
-                var force = localStorage.getItem('forceDesktop');
-                if(force === '1'){
-                    // 清理标记并跳回桌面页面
-                    localStorage.removeItem('forceDesktop');
-                    window.location.href = '/';
-                }
-            }catch(e){}
-        })();
-    </script>
+    <!-- 通过外部脚本从 /config.json 拉取运行时配置，避免内联脚本触发 CSP 限制 -->
+    <script src="/static/js/load-config.js" defer=""></script>
 
 </body></html>

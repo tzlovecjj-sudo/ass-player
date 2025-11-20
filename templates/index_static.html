@@ -127,11 +127,7 @@
         </div>
     </div>
 
-    <!-- 使用ES6模块化版本 -->
-    <script>
-        // 注入后端公开的运行时配置到前端
-        window.ASS_PLAYER_CONFIG = {"REPORT_TIMEOUT_MS": 3000};
-    </script>
-    <script type="module" src="/static/js/modules/main.js"></script>
+    <!-- 使用外部 loader 加载运行时配置并动态注入模块，避免内联脚本触发 CSP -->
+    <script src="/static/js/load-config.js" defer></script>
 </body>
 </html>

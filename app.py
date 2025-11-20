@@ -75,6 +75,29 @@ def mobile():
     }
     return render_template('index_mobile.html', ASS_PLAYER_CONFIG=public_cfg)
 
+
+@app.route('/config.json')
+def config_json():
+    """提供前端需要的公开配置，避免在模板中使用 inline script 注入，便于满足 CSP。
+
+    返回 JSON 结构，包含 `ASS_PLAYER_CONFIG` 与 `CANVAS_RENDER_OPTIONS`。
+    前端应通过拉取该接口来获得运行时配置并在外部脚本中初始化播放器。
+    """
+    cfg = get_config()
+    public_cfg = {
+        'REPORT_TIMEOUT_MS': getattr(cfg, 'REPORT_TIMEOUT_MS', 3000),
+        'DEFAULT_VIDEO_URL': getattr(cfg, 'DEFAULT_VIDEO_URL', 'https://www.bilibili.com/video/BV1NmyXBTEGD'),
+        'AUTO_PLAY_DEMO': getattr(cfg, 'AUTO_PLAY_DEMO', True),
+        'DEFAULT_ASS_NAME': getattr(cfg, 'DEFAULT_ASS_NAME', '2 Minecraft Pros VS 1000 Players.ass'),
+        'PREFERRED_SUBTITLE': getattr(cfg, 'PREFERRED_SUBTITLE', 'both'),
+    }
+    canvas_opts = {
+        'downscale': 0.6,
+        'maxFps': 20,
+        'useOffscreen': True,
+    }
+    return jsonify({'ASS_PLAYER_CONFIG': public_cfg, 'CANVAS_RENDER_OPTIONS': canvas_opts})
+
 # 定义使用说明页面的路由
 @app.route('/instructions')
 def instructions():
@@ -98,15 +121,32 @@ def static_files(filename):
 def ass_files(filename):
     """提供本地 ass_files 目录下的字幕文件访问"""
     ass_dir = os.path.join(base_dir, 'ass_files')
-    # 使用 secure_filename 防止路径穿越与非法文件名
-    # 只允许返回 ass_files 目录下存在的文件
-    safe_name = secure_filename(os.path.basename(filename))
-    if not safe_name:
+    # 避免路径穿越：仅允许请求文件名（不允许目录分隔符）
+    # 注意：不要使用 secure_filename 直接替换空格/字符，因为这会导致
+    # 实际文件名（例如含空格的字幕名）无法匹配而返回 404。
+    try:
+        # Flask 已对 URL 进行解码，但为保险起见对 filename 做一次 unquote
+        from urllib.parse import unquote
+        requested = unquote(filename)
+    except Exception:
+        requested = filename
+
+    # 仅取 basename，拒绝任何包含路径分隔符的请求
+    safe_basename = os.path.basename(requested)
+    if not safe_basename or os.path.sep in requested or (os.path.altsep and os.path.altsep in requested):
         return ('', 400)
-    file_path = os.path.join(ass_dir, safe_name)
-    if not os.path.isfile(file_path):
+
+    # 列出目录中的实际文件名，确保匹配真实文件（避免 secure_filename 改名问题）
+    try:
+        available = set(os.listdir(ass_dir))
+    except Exception:
+        return ('', 500)
+
+    if safe_basename not in available:
+        # 未找到精确匹配：返回 404 而非尝试替换文件名
         return ('', 404)
-    return send_from_directory(ass_dir, safe_name)
+
+    return send_from_directory(ass_dir, safe_basename)
 
 # 定义网站图标的路由
 @app.route('/favicon.ico')
@@ -137,7 +177,18 @@ def set_security_headers(response):
     - Strict-Transport-Security: 强制 HTTPS（仅当部署为 HTTPS 时有效）
     """
     # 尽量保持策略保守，可根据实际需要放宽
-    csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
+    # 为调试/兼容性短期放宽 CSP：允许内联脚本执行（'unsafe-inline'），并同时允许
+    # 媒体资源使用 blob: 与 data:。请仅在受控环境或调试阶段使用此放宽策略。
+    # 允许受信任的 HTTPS 媒体源以支持来自外部 CDN 的视频直链（例如 B站的 upos-* 域）。
+    # 注意：这会允许任何 HTTPS 源作为媒体来源；如果需要更严格控制，可替换为指定的域名列表。
+    csp = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "media-src 'self' blob: data: https:;"
+    )
     response.headers['Content-Security-Policy'] = csp
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
