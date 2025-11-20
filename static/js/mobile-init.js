@@ -23,6 +23,14 @@
             var slider = document.getElementById('mobileVolumeSlider');
             var video = document.getElementById('videoPlayer');
 
+            // 隐藏页面上原有的桌面音量滑块，避免与移动弹出滑块重复显示
+            try {
+                var originalSlider = document.getElementById('volumeSlider');
+                if (originalSlider) {
+                    originalSlider.classList.add('hidden-mobile-volume');
+                }
+            } catch (e) { /* 忽略 */ }
+
             function updateMuteIcon(){
                 if(!muteBtn || !video) return;
                 try{

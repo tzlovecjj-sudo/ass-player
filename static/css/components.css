@@ -312,3 +312,13 @@
         padding: 0 !important;
     }
 }
+
+/* 强制隐藏桌面滑块的便捷类（由移动初始化脚本在需要时添加） */
+.hidden-mobile-volume {
+    display: none !important;
+    visibility: hidden !important;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
