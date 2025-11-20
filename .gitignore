@@ -39,3 +39,4 @@ coverage.xml
 # Tools
 .mypy_cache/
 .ruff_cache/
+artifacts/
