@@ -163,7 +163,7 @@ body {
 #muteBtn:focus {
     outline: 2px solid #ff6b00;
 }
-}
+
 
 .progress-container {
     flex: 1;

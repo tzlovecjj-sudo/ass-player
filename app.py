@@ -8,7 +8,7 @@ import threading
 import time
 import re  # 导入正则表达式库
 import requests  # 用于后端代理视频流
-from flask import Flask, render_template, send_from_directory, request, jsonify, Response
+from flask import Flask, render_template, send_from_directory, request, jsonify, Response, redirect, url_for
 
 # 从 ass_player 模块导入 Bilibili 解析器
 from ass_player.bilibili import BiliBiliParser
@@ -44,7 +44,30 @@ def index():
         # 前端字幕语言偏好：'zh' | 'en' | 'both'（用于简单的渲染去重策略）
         'PREFERRED_SUBTITLE': getattr(cfg, 'PREFERRED_SUBTITLE', 'both'),
     }
+    # 如果客户端显示请求强制桌面版（例如 ?desktop=1），则跳过移动端重定向
+    if request.args.get('desktop') == '1':
+        return render_template('index.html', ASS_PLAYER_CONFIG=public_cfg)
+
+    # 简单的移动端检测：查看 User-Agent 是否包含常见移动设备或移动浏览器标识
+    ua = (request.headers.get('User-Agent') or '').lower()
+    mobile_indicators = ['mobile', 'android', 'iphone', 'ipod', 'windows phone', 'micromessenger', 'mqqbrowser', 'qq/']
+    is_mobile = any(ind in ua for ind in mobile_indicators)
+
+    if is_mobile:
+        # 当检测到移动端时，重定向到专门的移动适配页面
+        return redirect(url_for('mobile'))
+
     return render_template('index.html', ASS_PLAYER_CONFIG=public_cfg)
+
+
+@app.route('/mobile')
+def mobile():
+    """渲染移动端优化页面（面向手机浏览器）。"""
+    cfg = get_config()
+    public_cfg = {
+        'REPORT_TIMEOUT_MS': getattr(cfg, 'REPORT_TIMEOUT_MS', 3000),
+    }
+    return render_template('index_mobile.html', ASS_PLAYER_CONFIG=public_cfg)
 
 # 定义使用说明页面的路由
 @app.route('/instructions')
@@ -76,6 +99,16 @@ def ass_files(filename):
 def favicon():
     """提供网站图标 favicon.ico"""
     return send_from_directory(app.static_folder, 'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
+
+# 微信/域名安全验证：返回特定的 TXT 文件内容（用于申请恢复/验证）
+@app.route('/ec9072a1ff2112829688a44ce183b240.txt')
+def wechat_verify():
+    """Serve the verification TXT required by 微信 / 验证服务."""
+    try:
+        return send_from_directory(base_dir, 'ec9072a1ff2112829688a44ce183b240.txt', mimetype='text/plain')
+    except Exception:
+        return ('', 404)
 
 # 定义 API 路由，用于自动解析 Bilibili 视频链接
 @app.route('/api/auto-parse')

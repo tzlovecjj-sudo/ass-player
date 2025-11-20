@@ -1,0 +1,92 @@
+﻿/* Mobile-specific overrides */
+/* Loaded after main.css to override desktop rules */
+
+html, body {
+  padding: 0 !important;
+  margin: 0 !important;
+  font-size: 16px;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* Make container full width on small screens */
+.container {
+  max-width: 100% !important;
+  padding: 8px !important;
+}
+
+/* Mobile uses canvas-based rendering (project requires canvas). Show canvas and hide native video element. */
+#videoPlayer {
+  display: none !important;
+}
+#videoCanvas {
+  display: block !important;
+  width: 100% !important;
+  height: auto !important;
+}
+
+.video-container {
+  min-height: 0 !important;
+  margin-bottom: 8px !important;
+  border-radius: 8px !important;
+}
+
+/* Header (video + controls + subtitle) fixed to top */
+#mobile-header{
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #0f0f0f;
+  z-index: 9999;
+  padding: 10px 8px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+
+#mobile-header .video-wrap{ margin-bottom:8px }
+
+.mobile-panel{
+  padding: 12px 10px;
+  background: transparent;
+}
+
+.panel-row{ display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.03) }
+.panel-row .label{ color:#aaa; font-size:13px }
+.panel-row .value{ color:#fff; font-size:14px; max-width:65%; text-align:right }
+
+.visually-hidden{ position:absolute!important; height:1px; width:1px; overflow:hidden; clip:rect(1px,1px,1px,1px); white-space:nowrap }
+
+.controls {
+  padding: 8px !important;
+  gap: 6px !important;
+}
+
+button {
+  width: auto !important;
+  height: auto !important;
+  padding: 8px 10px !important;
+  font-size: 15px !important;
+}
+
+.upload-group input,
+.url-input-container input {
+  padding: 10px !important;
+  font-size: 15px !important;
+}
+
+/* Make progress bar touch-friendly */
+.progress-bar {
+  height: 10px !important;
+}
+
+/* Reduce large side panels / font sizes */
+.header h1 { font-size: 1.1rem !important; }
+.header p { font-size: 0.95rem !important; }
+
+/* Subtitle preview readable on small screens */
+.subtitle-preview-content { font-size: 15px !important; padding: 8px !important; }
+
+/* Inputs & buttons stacked on narrow widths */
+@media (max-width: 480px) {
+  .url-input-container { flex-direction: column; gap: 6px; }
+  .url-input-container button { width: 100%; }
+}

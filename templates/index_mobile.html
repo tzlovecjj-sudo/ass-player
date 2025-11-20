@@ -1,0 +1,110 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ASS字幕播放器 - 移动端</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile.css') }}">
+    <style>
+        /* 简单的移动端适配样式，优先覆盖桌面布局中的布局问题 */
+        body { font-size: 16px; padding: 0; margin: 0; background: #111; color: #eee; }
+        .mobile-container { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
+        .video-wrap { position: relative; width: 100%; background: #000; border-radius: 8px; overflow: hidden; }
+        video { width: 100%; height: auto; display: block; background: #000; }
+        .mobile-controls { display:flex; gap:8px; align-items:center; justify-content:space-between; margin-top:6px; }
+        .mobile-inputs { display:flex; gap:8px; margin-top:8px; }
+        input[type="text"]{ flex:1; padding:8px; border-radius:6px; border:1px solid #444; background:#222; color:#fff }
+        button { padding:8px 10px; border-radius:6px; border:none; background:#2d8cff; color:#fff }
+        .small { font-size: 13px; color:#bbb }
+        .link-desktop { text-align:center; margin-top:8px }
+        .link-desktop a { color:#2d8cff }
+    </style>
+</head>
+<body>
+    <div class="mobile-container">
+        <div id="mobile-header">
+            <div class="mobile-header-top">
+                <h2 class="visually-hidden">ASS字幕播放器</h2>
+            </div>
+
+            <div class="video-wrap">
+                <video id="videoPlayer" playsinline webkit-playsinline controls crossorigin="anonymous">
+                    您的浏览器不支持视频播放
+                </video>
+            </div>
+
+            <div class="mobile-controls" id="mobileControls">
+                <div style="display:flex;gap:6px;align-items:center;">
+                    <button id="playPauseBtn">播放/暂停</button>
+                    <button id="fullscreenBtn">全屏</button>
+                </div>
+                <div style="text-align:right;font-size:12px;color:#aaa">移动体验</div>
+            </div>
+
+            <div class="subtitle-preview-container" id="mobileSubtitlePreview">
+                <div class="subtitle-preview-content" id="subtitlePreview">字幕将在这里实时显示</div>
+            </div>
+        </div>
+
+        <div class="mobile-panel" id="mobilePanel">
+            <div class="panel-row">
+                <div class="label">视频标题</div>
+                <div class="value" id="videoTitle">未加载</div>
+            </div>
+            <div class="panel-row">
+                <div class="label">分辨率</div>
+                <div class="value" id="videoResolution">-</div>
+            </div>
+            <div class="panel-row">
+                <div class="label">时长</div>
+                <div class="value" id="videoDuration">-</div>
+            </div>
+            <div class="panel-row">
+                <div class="label">字幕文件</div>
+                <div class="value" id="subtitleName">未加载</div>
+            </div>
+            <div class="panel-row">
+                <div class="label">字幕数量</div>
+                <div class="value" id="subtitleCount">-</div>
+            </div>
+
+            <div style="margin-top:10px;font-size:12px;color:#888">提示：移动端已精简界面，选择视频/字幕与下载功能已隐藏。</div>
+
+            <div class="small link-desktop" style="margin-top:12px">如果你更喜欢桌面版，<a href="/?desktop=1" onclick="try{localStorage.setItem('forceDesktop','1')}catch(e){}">点此打开桌面版</a></div>
+        </div>
+
+        <div style="height:40px"></div>
+    </div>
+
+    <script>
+        // 注入后端公开的运行时配置到前端
+        window.ASS_PLAYER_CONFIG = {{ ASS_PLAYER_CONFIG | tojson | safe }};
+        // Canvas rendering options for mobile devices.
+        // Player renderer should read `window.CANVAS_RENDER_OPTIONS` and adapt:
+        // - downscale: render scale relative to displayed size (0.5 means render at 50% resolution)
+        // - maxFps: maximum frames per second to render (use frame-skipping)
+        // - useOffscreen: prefer OffscreenCanvas when available
+        window.CANVAS_RENDER_OPTIONS = {
+            downscale: 0.6,
+            maxFps: 20,
+            useOffscreen: true
+        };
+    </script>
+    <script type="module" src="{{ url_for('static', filename='js/modules/main.js') }}"></script>
+    <script>
+        // 如果用户点击了“打开桌面版”并设置了本地标记，下次不再自动重定向到移动页
+        // 这个脚本在移动页面加载时也会处理本地标记（避免循环）
+        (function(){
+            try{
+                var force = localStorage.getItem('forceDesktop');
+                if(force === '1'){
+                    // 清理标记并跳回桌面页面
+                    localStorage.removeItem('forceDesktop');
+                    window.location.href = '/';
+                }
+            }catch(e){}
+        })();
+    </script>
+</body>
+</html>
