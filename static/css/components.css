@@ -300,3 +300,15 @@
     /* 小屏幕上稍微缩短滑块宽度 */
     #mobileVolumePopup input[type="range"] { width: 96px; }
 }
+
+/* 在移动屏幕上隐藏页面上原有的 volume slider（桌面控件），避免重复显示 */
+@media (max-width: 768px) {
+    .controls-right #volumeSlider {
+        display: none !important;
+        visibility: hidden;
+        width: 0 !important;
+        height: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+}

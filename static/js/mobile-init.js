@@ -13,13 +13,14 @@
             var muteBtn = document.getElementById('muteBtn');
             var volumePopup = document.createElement('div');
             volumePopup.id = 'mobileVolumePopup';
-            volumePopup.innerHTML = '<input id="volumeSlider" type="range" min="0" max="1" step="0.01" value="1" />';
+            // 使用独立 id 避免与桌面端的静态滑块冲突
+            volumePopup.innerHTML = '<input id="mobileVolumeSlider" type="range" min="0" max="1" step="0.01" value="1" />';
             // 将弹出层附到 controls-right 容器，若不存在则附到 body
             var container = document.querySelector('.controls-right') || document.body;
             container.style.position = container.style.position || 'relative';
             container.appendChild(volumePopup);
 
-            var slider = document.getElementById('volumeSlider');
+            var slider = document.getElementById('mobileVolumeSlider');
             var video = document.getElementById('videoPlayer');
 
             function updateMuteIcon(){
