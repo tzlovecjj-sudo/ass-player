@@ -9,6 +9,7 @@ import time
 import re  # 导入正则表达式库
 import requests  # 用于后端代理视频流
 from flask import Flask, render_template, send_from_directory, request, jsonify, Response, redirect, url_for
+from werkzeug.utils import secure_filename
 
 # 从 ass_player 模块导入 Bilibili 解析器
 from ass_player.bilibili import BiliBiliParser
@@ -92,7 +93,15 @@ def static_files(filename):
 def ass_files(filename):
     """提供本地 ass_files 目录下的字幕文件访问"""
     ass_dir = os.path.join(base_dir, 'ass_files')
-    return send_from_directory(ass_dir, filename)
+    # 使用 secure_filename 防止路径穿越与非法文件名
+    # 只允许返回 ass_files 目录下存在的文件
+    safe_name = secure_filename(os.path.basename(filename))
+    if not safe_name:
+        return ('', 400)
+    file_path = os.path.join(ass_dir, safe_name)
+    if not os.path.isfile(file_path):
+        return ('', 404)
+    return send_from_directory(ass_dir, safe_name)
 
 # 定义网站图标的路由
 @app.route('/favicon.ico')
@@ -109,6 +118,29 @@ def wechat_verify():
         return send_from_directory(base_dir, 'ec9072a1ff2112829688a44ce183b240.txt', mimetype='text/plain')
     except Exception:
         return ('', 404)
+
+
+@app.after_request
+def set_security_headers(response):
+    """设置一组推荐的安全 HTTP 头，减小 XSS / 点击劫持等风险。
+
+    - Content-Security-Policy: 限制 JS/CSS/资源来源为本站
+    - X-Content-Type-Options: 阻止 MIME 类型嗅探
+    - X-Frame-Options: 防止页面被嵌入到 iframe
+    - Referrer-Policy: 限制 Referer 泄露
+    - Permissions-Policy: 关闭敏感 API
+    - Strict-Transport-Security: 强制 HTTPS（仅当部署为 HTTPS 时有效）
+    """
+    # 尽量保持策略保守，可根据实际需要放宽
+    csp = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'"
+    response.headers['Content-Security-Policy'] = csp
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Referrer-Policy'] = 'no-referrer-when-downgrade'
+    response.headers['Permissions-Policy'] = 'geolocation=(), microphone=()'
+    # 仅在通过 HTTPS 部署时启用 HSTS，保守设置为 2 年
+    response.headers['Strict-Transport-Security'] = 'max-age=63072000; includeSubDomains; preload'
+    return response
 
 # 定义 API 路由，用于自动解析 Bilibili 视频链接
 @app.route('/api/auto-parse')
