@@ -90,32 +90,51 @@ button {
 /* Subtitle preview readable on small screens */
 .subtitle-preview-content { font-size: 15px !important; padding: 8px !important; }
 
-/* 移动端音量弹出控件 */
+/* 移动端音量弹出控件（水平短条，紧贴右侧控制区） */
 #mobileVolumePopup {
-  display: none;
   position: absolute;
-  bottom: 44px;
-  right: 0px;
-  width: 40px;
-  height: 120px;
+  right: 6px;
+  top: -42px;
   background: rgba(10,12,16,0.95);
   border: 1px solid rgba(255,255,255,0.06);
+  padding: 6px 8px;
   border-radius: 8px;
-  padding: 6px;
-  z-index: 10000;
   box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+  transform-origin: top right;
+  transform: scale(0.95);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease, transform 160ms ease;
+  z-index: 10000;
+  display: inline-block;
 }
-#mobileVolumePopup.visible { display: block }
+
+#mobileVolumePopup.visible {
+  transform: scale(1);
+  opacity: 1;
+  pointer-events: auto;
+}
+
 #mobileVolumePopup input[type=range] {
-  /* 通过旋转让 range 显示为垂直条（兼容性好但方向可能需要 JS 同步） */
-  transform: rotate(-90deg);
-  -webkit-appearance: none;
-  width: 110px;
-  height: 30px;
+  width: 96px;
+  height: 28px;
   background: transparent;
+  -webkit-appearance: none;
 }
-#mobileVolumePopup input[type=range]::-webkit-slider-runnable-track { height:6px; background: linear-gradient(90deg,#2d8cff,#0066cc); border-radius:4px }
-#mobileVolumePopup input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; background:#fff; border-radius:50% }
+
+#mobileVolumePopup input[type=range]::-webkit-slider-runnable-track {
+  height: 6px;
+  background: #3b3b3b;
+  border-radius: 6px;
+}
+#mobileVolumePopup input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: #ff6b00;
+  border-radius: 50%;
+  margin-top: -4px;
+}
 
 /* Inputs & buttons stacked on narrow widths */
 @media (max-width: 480px) {

@@ -55,7 +55,7 @@
 
                 <div class="controls-right">
                     <button id="muteBtn" title="静音/取消静音">🔇</button>
-                    <input type="range" id="volumeSlider" min="0" max="1" step="0.01" value="1" style="width:70px;vertical-align:middle;">
+                    <!-- 移动端使用浮动音量控件以避免工具栏溢出；桌面滑块已移除 -->
                     <button id="fullscreenBtn" title="网页全屏">⛶</button>
                 </div>
             </div>
@@ -71,12 +71,8 @@
             <!-- 临时恢复的视频/字幕加载面板（移动端调试用） -->
             <div class="panel-section">
                 <h3>视频源设置</h3>
-                <div class="upload-group">
-                    <label for="videoFile">📁 选择本地视频文件</label>
-                    <input type="file" id="videoFile" accept="video/*">
-                    <div class="platform-info">支持 MP4, WebM 等格式</div>
-                </div>
 
+                <!-- 移动端移除本地视频上传，仅支持通过 URL 加载视频 -->
                 <div class="upload-group">
                     <label for="onlineVideoUrl">🌐 在线视频URL</label>
                     <div class="url-input-container">

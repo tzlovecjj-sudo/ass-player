@@ -139,21 +139,22 @@ export default class EmbeddedASSPlayer {
      * @returns {boolean} 如果所有必需元素都存在，则返回 true，否则返回 false。
      */
     verifyDOMElements() {
-        const requiredElements = {
-            videoPlayer: this.videoPlayer,
-            videoCanvas: this.videoCanvas,
-            playPauseBtn: this.playPauseBtn,
-            videoFileInput: this.videoFileInput,
-            subtitleFileInput: this.subtitleFileInput
-        };
-        
-        for (const [name, element] of Object.entries(requiredElements)) {
-            if (!element) {
-                console.error(`关键 DOM 元素 '${name}' 未在页面中找到。`);
+        // 在移动端或精简页面中，某些输入控件（例如本地视频文件选择）可能被移除。
+        // 这里只把最关键的渲染与控制元素视为必需：videoPlayer, videoCanvas, playPauseBtn。
+        const required = [
+            { name: 'videoPlayer', el: this.videoPlayer },
+            { name: 'videoCanvas', el: this.videoCanvas },
+            { name: 'playPauseBtn', el: this.playPauseBtn }
+        ];
+
+        for (const item of required) {
+            if (!item.el) {
+                console.error(`关键 DOM 元素 '${item.name}' 未在页面中找到。`);
                 return false;
             }
         }
-        
+
+        // 非必要元素（如 videoFileInput、subtitleFileInput）如果缺失，则视为可接受，相关功能会降级处理。
         return true;
     }
     
